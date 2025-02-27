@@ -6,6 +6,8 @@ import warnings
 from tqdm import tqdm
 
 from datasets import get_train_test_split, all_possible_hold_outs, get_hold_out_sets
+from cuml.neighbors import KNeighborsRegressor
+from cuml.ensemble import RandomForestRegressor as gpuRandomForestRegressor
 
 from sklearn import set_config
 from sklearn.pipeline import Pipeline
@@ -57,7 +59,9 @@ def create_pipeline(num_cols, cat_cols, imputer='MeanImputer', scaler='StandardS
     imputer_map = {"MeanImputer": SimpleImputer(strategy="mean"),
                    "MedianImputer": SimpleImputer(strategy="median"),
                    "KNNImputer": KNNImputer(),
-                   "IterativeImputer": IterativeImputer(estimator=RandomForestRegressor())}
+                   "gpuKNNImputer": IterativeImputer(estimator=KNeighborsRegressor()),
+                   "RandomForestImputer": IterativeImputer(estimator=RandomForestRegressor()),
+                   "gpuRandomForestImputer": IterativeImputer(estimator=gpuRandomForestRegressor())}
     
     scaler_map = {"StandardScaler": StandardScaler(),
                   "MinMaxScaler": MinMaxScaler(),

@@ -37,7 +37,7 @@ if __name__ == "__main__":
         os.makedirs("Results/preprocess_selection/", exist_ok=True)
         
         # Define imputer and scaler options
-        imputer_options = ["MeanImputer", "MedianImputer", "KNNImputer", "IterativeImputer"]
+        imputer_options = ["gpuRandomForestImputer"] #["MeanImputer", "MedianImputer", "gpuKNNImputer", "gpuRandomForestImputer"]
         scaler_options = ["StandardScaler", "MinMaxScaler", "RobustScaler", "MaxAbsScaler"]
         
         # Build pipeline dictionary for LGBMRegressor
@@ -46,7 +46,8 @@ if __name__ == "__main__":
             for scaler in scaler_options:
                 key = f"{imputer}_{scaler}"
                 pipeline = create_pipeline(num_cols, cat_cols, imputer=imputer, scaler=scaler,
-                                           estimator=LGBMRegressor(random_state=62, n_jobs=-1, 
+                                           estimator=LGBMRegressor(random_state=62, n_jobs=-1,
+                                                                   device="cuda",
                                                                    verbose_eval=False, verbose=-1),
                                            model_name="LGBMRegressor")
                 pipeline_dict[key] = pipeline
