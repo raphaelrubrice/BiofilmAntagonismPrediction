@@ -20,24 +20,25 @@ sudo apt-get install --no-install-recommends -y nvidia-opencl-icd-410 nvidia-ope
 sudo apt-get install --no-install-recommends -y git cmake build-essential libboost-dev libboost-system-dev libboost-filesystem-dev
 sudo apt-get install -y libboost-all-dev
 
-# Clone LightGBM repository
-if [ ! -d "$LIGHTGBM_PATH" ]; then
-  git clone --recursive https://github.com/microsoft/LightGBM "$LIGHTGBM_PATH"
+# Clone LightGBM repository if it does not already exist
+if [ ! -d "$LIGHTGBM_PATH/.git" ]; then
+  echo "Cloning LightGBM repository..."
+  git clone --recursive https://github.com/microsoft/LightGBM "$LIGHTGBM_REPO_PATH"
 else
-  echo "LightGBM directory already exists. Skipping clone."
+  echo "LightGBM repository already exists. Skipping clone."
 fi
 
-# Change directory to LightGBM
-cd "$LIGHTGBM_PATH" || exit
-
 # Build LightGBM with CUDA support
-cmake -B build -S . -DUSE_CUDA=1 -DOpenCL_LIBRARY=/usr/local/cuda/lib64/libOpenCL.so -DOpenCL_INCLUDE_DIR=/usr/local/cuda/include/
-cmake --build build -j$(nproc)
-
-# Install LightGBM with CUDA support
-pip install setuptools
-sh ./build-python.sh install --precompile
-sh ./build-python.sh install --cuda
+(
+  cd "$LIGHTGBM_PATH" || exit
+  cmake -B build -S . -DUSE_CUDA=1 -DOpenCL_LIBRARY=/usr/local/cuda/lib64/libOpenCL.so -DOpenCL_INCLUDE_DIR=/usr/local/cuda/include/
+  cmake --build build -j$(nproc)
+  
+  # Install LightGBM with CUDA support
+  pip install setuptools
+  sh ./build-python.sh install --precompile
+  sh ./build-python.sh install --cuda
+)
 
 # Install cuML and RAPIDS AI libraries
 pip install \
