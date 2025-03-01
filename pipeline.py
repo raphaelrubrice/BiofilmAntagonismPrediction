@@ -148,7 +148,7 @@ def evaluate_hold_out(
 
     estimator.fit(X_train, np.ravel(y_train))
 
-    yhat = estimator.predict(X_test)
+    yhat = np.ravel(estimator.predict(X_test))
 
     abs_err = np.abs(yhat - y_test.to_numpy())
     relative_abs_err = np.abs(yhat - y_test.to_numpy()) / (
