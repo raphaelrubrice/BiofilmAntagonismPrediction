@@ -33,6 +33,22 @@ source BAP_env/bin/activate  # Windows: BAP_env\Scripts\activate
 pip install -r requirements.txt
 ```
 
+🔧 Installing LightGBM (CUDA) & cuML
+
+Run the following script before using the repository to ensure LightGBM and cuML are properly set up:
+
+bash install_script.sh <path_to_clone_LightGBM>
+
+Replace <path_to_clone_LightGBM> with the desired location where LightGBM should be cloned and built.
+
+To verify GPU support:
+
+import lightgbm as lgb
+print(lgb.__version__)
+print(lgb.__file__)
+
+Ensure the output points to a CUDA-enabled LightGBM installation.
+
 To verify GPU support:
 ```python
 import lightgbm as lgb
