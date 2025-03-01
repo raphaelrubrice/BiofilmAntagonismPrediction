@@ -58,11 +58,15 @@ def hold_out_set(org1, path_to_method_df, org2=None):
     if org2 is None:
         # When evaluating for a new organism, we remove it from training
         mask = df[map_column[org1_type]] == org1
+        idx_train = df[~mask].index
+        idx_test = df[mask].index
     else:
         # When evaluating for a new interaction, we remove both organisms from training
-        mask = (df[map_column[org1_type]] == org1) | (df[map_column[org2_type]] == org2)
-    idx_train = df[~mask].index
-    idx_test = df[mask].index
+        train_mask = (df[map_column[org1_type]] == org1) | (df[map_column[org2_type]] == org2)
+        test_mask = (df[map_column[org1_type]] == org1) & (df[map_column[org2_type]] == org2)
+        idx_train = df[~train_mask].index
+        idx_test = df[test_mask].index
+    
 
     ho_name = org1 if org2 is None else f"{org1}_x_{org2}"
     # return ho_name, {ho_name:mask}
