@@ -6,7 +6,7 @@ import warnings
 from tqdm import tqdm
 
 from datasets import get_train_test_split, all_possible_hold_outs, get_hold_out_sets
-from model_selection import is_gpu_available
+from utils import is_gpu_available
 
 from cuml.neighbors import KNeighborsRegressor
 from cuml.ensemble import RandomForestRegressor as gpuRandomForestRegressor
