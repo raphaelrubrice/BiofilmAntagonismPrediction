@@ -1,6 +1,6 @@
 # **Biofilm Antagonism Prediction (BAP)**
-
-## **📝 A machine learning approach to predict the antagonism of beneficial strains against microbial pathogens using morphological descriptors of their biofilms.**
+Code for the paper :
+## **A machine learning approach to predict the antagonism of beneficial strains against microbial pathogens using morphological descriptors of their biofilms.**
 
 ### **📌 Introduction**
 Biofilms play a crucial role in microbial ecology, healthcare, and industry. Understanding interactions between bacterial species in biofilm environments is essential for developing novel antimicrobial strategies. This repository provides a machine learning pipeline for predicting biofilm antagonism using curated datasets. The framework supports model selection, preprocessing optimization, and performance evaluation to identify the best predictive approach.
