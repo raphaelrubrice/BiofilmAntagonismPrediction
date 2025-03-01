@@ -10,7 +10,6 @@ Biofilms play a crucial role in microbial ecology, healthcare, and industry. Und
 ## **⚡ Installation**
 
 ### **📌 Prerequisites**
-- **Operating System:** Linux or Windows with WSL2 (recommended for GPU support)
 - **GPU Access:** Required for optimal performance
 - **CUDA-Compatible GPU:** Needed for accelerated training with LightGBM and other models
 - **CUDA Built LightGBM:** Ensure you have a CUDA-enabled version of LightGBM installed
