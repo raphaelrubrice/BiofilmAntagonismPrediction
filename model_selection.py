@@ -84,9 +84,7 @@ if __name__ == "__main__":
                     random_state=62,
                     n_jobs=-1,
                     tree_method="hist", 
-                    device="cuda",
-                    gpu_id=0,
-                ),
+                    device="cuda"),
             }
             if gpu_available
             else {
