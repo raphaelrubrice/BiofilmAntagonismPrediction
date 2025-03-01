@@ -132,12 +132,12 @@ if __name__ == "__main__":
         all_results = []
         results_folder = "Results/preprocess_selection"
         for file in os.listdir(results_folder):
-            if file.endswith(".csv") and mode in file and "_all_results" not in file:
+            if file.endswith(".csv") and args.mode in file and "_all_results" not in file:
                 all_results.append(pd.read_csv(os.path.join(results_folder, file)))
         if all_results:
             all_df = pd.concat(all_results, axis=0)
             all_df.to_csv(
-                os.path.join(results_folder, f"{mode}_all_results.csv"),
+                os.path.join(results_folder, f"{args.mode}_all_results.csv"),
                 index=False,
             )
         else:
