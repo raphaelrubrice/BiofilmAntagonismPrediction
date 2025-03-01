@@ -5,7 +5,8 @@ import argparse
 from pipeline import create_pipeline, evaluate
 from utils import is_gpu_available
 
-from sklearn.linear_model import Lasso, ElasticNet, LinearSVR
+from sklearn.linear_model import Lasso, ElasticNet
+from sklearn.svm import LinearSVR
 from sklearn.ensemble import GradientBoostingRegressor
 from lightgbm import LGBMRegressor
 from xgboost import XGBRegressor
