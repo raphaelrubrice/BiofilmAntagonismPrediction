@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.run:
+    if args.run == 1:
         METHOD = "combinatoric"
         MODE = args.mode
         PROTOCOL_SUFFIX = "_hold_outs.pkl" if MODE != "cv" else "_cv.pkl"
@@ -83,8 +83,9 @@ if __name__ == "__main__":
                     n_estimators=100,
                     random_state=62,
                     n_jobs=-1,
-                    tree_method="hist", 
-                    device="cuda"),
+                    tree_method="hist",
+                    device="cuda",
+                ),
             }
             if gpu_available
             else {
@@ -150,7 +151,11 @@ if __name__ == "__main__":
     if args.concat_results:
         all_results = []
         for file in os.listdir("Results/model_selection"):
-            if file.endswith(".csv") and args.mode in file and "_all_results" not in file:
+            if (
+                file.endswith(".csv")
+                and args.mode in file
+                and "_all_results" not in file
+            ):
                 all_results.append(pd.read_csv("Results/model_selection/" + file))
         if all_results != []:
             all_df = pd.concat(all_results, axis=0)

@@ -124,7 +124,9 @@ def plot_model_selection(
     elif mode == "interaction":
         results = results[results["Evaluation"].isin(ho_interaction)]
     else:
-        results = results[results["Evaluation"].isin(ho_org)]
+        results = results[
+            results["Evaluation"].isin(ho_bacillus + ho_pathogen + ho_interaction)
+        ]
     # For MAE and MAPE, compute 95% confidence intervals for the metric.
     # Otherwise, just compute the mean.
     # Compute group statistics: mean, standard deviation, and count.
@@ -153,7 +155,7 @@ def plot_model_selection(
     error_column = "ci"
 
     # Compute overall best (lowest) value of the metric (using mean_metric when available)
-    best_val = agg_data[y_value].min()
+    best_val = agg_data[y_value].min() if metric != "R2" else agg_data[y_value].max()
     best_model = agg_data["Model"][agg_data[y_value] == best_val].iloc[0]
     best_method = agg_data["Method"][agg_data[y_value] == best_val].iloc[0]
 
@@ -290,6 +292,7 @@ def summary_model_selection(
         "R2",
     ], "metric must be one of: RMSE, MAE, std_abs_err, MAPE, std_abs_relative_err, R2"
 
+    direction = "(Lower is better)" if metric != "R2" else "(Higher is better)"
     # Read the CSV file and filter by the selected method.
     results = pd.read_csv(results_file_path)
     results = results[results["Method"] == method]
@@ -351,6 +354,9 @@ def summary_model_selection(
     ]
     available_models = [m for m in order_models if m in agg_data["Model"].unique()]
 
+    assert set(agg_data["Model"].unique()).intersection(set(available_models)) == set(
+        agg_data["Model"].unique()
+    ), "We are missing models when defining order for plotting"
     # Ensure EvalType is categorical with the desired order.
     agg_data["EvalType"] = pd.Categorical(
         agg_data["EvalType"], categories=eval_order, ordered=True
@@ -416,7 +422,7 @@ def summary_model_selection(
         fontweight="bold",
     )
     ax.set_xlabel("Model", fontsize=14, fontweight="bold")
-    ax.set_ylabel(metric, fontsize=14, fontweight="bold")
+    ax.set_ylabel(f"{metric} {direction}", fontsize=14, fontweight="bold")
 
     # Append custom legend entry for the overall best line.
     handles, labels = ax.get_legend_handles_labels()
@@ -493,6 +499,12 @@ def summary_preprocess_selection(
       show : bool, optionnel
           Si True, le graphique est affiché.
     """
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from scipy import stats
+
     # Validation de la métrique
     assert metric in [
         "RMSE",
@@ -580,8 +592,8 @@ def summary_preprocess_selection(
     for imputer in [
         "MeanImputer",
         "MedianImputer",
-        "gpuKNNImputer",
-        "gpuRandomForestImputer",
+        "KNNImputer",
+        "RandomForestImputer",
     ]:
         for scaler in [
             "StandardScaler",
@@ -591,6 +603,10 @@ def summary_preprocess_selection(
         ]:
             order_models.append(f"{imputer}_{scaler}")
     available_models = [m for m in order_models if m in agg_data["Model"].unique()]
+
+    assert set(agg_data["Model"].unique()).intersection(set(available_models)) == set(
+        agg_data["Model"].unique()
+    ), "We are missing models when defining order for plotting"
 
     agg_data["EvalType"] = pd.Categorical(
         agg_data["EvalType"], categories=eval_order, ordered=True
@@ -604,7 +620,7 @@ def summary_preprocess_selection(
     ]  # éviter la division par zéro
     overall_group["ratio"] = overall_group["mean_metric"] / overall_group["ci"]
     if not overall_group.empty:
-        best_idx = overall_group["ratio"].idxmin()
+        best_idx = overall_group["ratio"].idxmax()
         best_model = overall_group.loc[best_idx, "Model"]
         best_metric = overall_group.loc[best_idx, "mean_metric"]
         best_ratio = overall_group.loc[best_idx, "ratio"]
@@ -618,7 +634,8 @@ def summary_preprocess_selection(
     plt.rcParams.update(
         {"font.size": 8, "font.family": "sans-serif", "font.weight": "bold"}
     )
-    fig, ax = plt.subplots(figsize=(15, 7))
+    # On choisit une taille adaptée pour une orientation verticale
+    fig, ax = plt.subplots(figsize=(7, 15))
 
     # Sauvegarde des données agrégées si demandé.
     if save_agg_data:
@@ -633,7 +650,7 @@ def summary_preprocess_selection(
             save_agg_path = f"_{method}_agg_data.csv"
         agg_data.to_csv(save_agg_path, index=False)
 
-    # Tracé des points avec barres d'erreur
+    # Pour un plot vertical, les modèles seront sur l'axe y.
     # On définit des offsets pour décaler les points par type d'évaluation (pour éviter qu'ils ne se superposent)
     dodge_offsets = {
         "Overall": -0.15,
@@ -641,18 +658,19 @@ def summary_preprocess_selection(
         "Pathogen": 0.05,
         "Interaction": 0.15,
     }
-    # Mapping des modèles aux positions sur l'axe des x
-    model_to_x = {model: i for i, model in enumerate(available_models)}
+    # Mapping des modèles aux positions sur l'axe y
+    model_to_y = {model: i for i, model in enumerate(available_models)}
 
-    # Pour chaque type d'évaluation, tracer le point et son intervalle de confiance
+    # Pour chaque type d'évaluation, tracer le point et son intervalle de confiance.
+    # Ici, on trace des barres d'erreur horizontales: xerr, avec y positions décalées.
     for eval_type in eval_order:
         sub = agg_data[agg_data["EvalType"] == eval_type]
-        # Calcul des positions x décalées
-        x_positions = [model_to_x[m] + dodge_offsets[eval_type] for m in sub["Model"]]
+        # Calcul des positions y décalées
+        y_positions = [model_to_y[m] + dodge_offsets[eval_type] for m in sub["Model"]]
         ax.errorbar(
-            x_positions,
-            sub["mean_metric"],
-            yerr=sub["ci"],
+            sub["mean_metric"],  # x : valeur de la métrique
+            y_positions,  # y : position sur l'axe des modèles
+            xerr=sub["ci"],  # barres d'erreur horizontales
             fmt="o",
             capsize=5,
             markersize=8,
@@ -661,30 +679,39 @@ def summary_preprocess_selection(
             markeredgecolor="black",
         )
 
-    # Ajout d'une ligne horizontale pointillée indiquant la meilleure stratégie (selon le ratio)
+    # Ajout d'une ligne verticale pointillée indiquant la meilleure stratégie (selon le ratio)
     if best_metric is not None:
-        ax.axhline(
-            y=best_metric,
+        ax.axvline(
+            x=best_metric,
             linestyle=":",
             color="red",
             linewidth=2,
-            label=f"Best Overall ({best_model}): {best_metric:.3f} (ratio: {best_ratio:.3f})",
+            label=f"Best Overall ({best_model}): {best_metric:.3f} \n({metric} / CI ratio: {best_ratio:.3f})",
         )
 
     ax.set_title(
-        f"Résumé de la sélection de preprocessing ({metric} ± 95% CI)\n"
-        f"Méthode: {method.upper()} | Meilleure stratégie: {best_model}",
+        f"Summary of preprocessing selection ({metric} ± 95% CI)\n"
+        f"Method: {method.upper()} | Best preprocessing: {best_model}",
         fontsize=16,
         fontweight="bold",
     )
-    ax.set_xlabel("Preprocessing", fontsize=14, fontweight="bold")
-    ax.set_ylabel(metric, fontsize=14, fontweight="bold")
+    ax.set_ylabel("Preprocessing", fontsize=14, fontweight="bold")
+    ax.set_xlabel(metric, fontsize=9, fontweight="bold")
 
-    # Positionnement et étiquetage de l'axe des x
-    ax.set_xticks(range(len(available_models)))
-    ax.set_xticklabels(available_models, rotation=15)
+    # Positionnement et étiquetage de l'axe des y
+    ax.set_yticks(range(len(available_models)))
+    ax.set_yticklabels(available_models, rotation=0)
 
-    ax.legend(title="Type d'évaluation", title_fontsize=12, fontsize=10)
+    # Place legend outside (below the plot)
+    ax.legend(
+        title="Evaluation type",
+        title_fontsize=12,
+        fontsize=10,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.1),
+        ncol=1,
+    )
+    plt.xticks(rotation=45)
     plt.tight_layout()
 
     if save_path is not None:

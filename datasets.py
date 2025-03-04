@@ -5,6 +5,8 @@ import random as rd
 import pickle as pkl
 from pathlib import Path
 import argparse
+import itertools
+
 
 from sklearn.model_selection import KFold
 
@@ -62,11 +64,14 @@ def hold_out_set(org1, path_to_method_df, org2=None):
         idx_test = df[mask].index
     else:
         # When evaluating for a new interaction, we remove both organisms from training
-        train_mask = (df[map_column[org1_type]] == org1) | (df[map_column[org2_type]] == org2)
-        test_mask = (df[map_column[org1_type]] == org1) & (df[map_column[org2_type]] == org2)
+        train_mask = (df[map_column[org1_type]] == org1) | (
+            df[map_column[org2_type]] == org2
+        )
+        test_mask = (df[map_column[org1_type]] == org1) & (
+            df[map_column[org2_type]] == org2
+        )
         idx_train = df[~train_mask].index
         idx_test = df[test_mask].index
-    
 
     ho_name = org1 if org2 is None else f"{org1}_x_{org2}"
     # return ho_name, {ho_name:mask}
@@ -222,6 +227,169 @@ def get_train_test_split(
         y_train = y_train.loc[X_train.index]
 
     return X_train, X_test, y_train, y_test
+
+
+import pandas as pd
+import numpy as np
+import itertools
+from datasets import get_train_test_split  # Assumes this function is defined elsewhere
+
+
+def make_products(df, cols):
+    """
+    For each unique pair of columns in 'cols', compute their product.
+    Returns a DataFrame with the new columns named 'prod_<col1>_<col2>'.
+    """
+    new_features = pd.DataFrame(index=df.index)
+    for col1, col2 in itertools.combinations(cols, 2):
+        new_col = f"prod_{col1}_{col2}"
+        new_features[new_col] = df[col1] * df[col2]
+    return new_features
+
+
+def make_ratios(df, cols, eps=1e-4):
+    """
+    For each unique pair of columns in 'cols', compute the ratio col1 / (col2 + eps).
+    Returns a DataFrame with new columns named 'ratio_<col1>_<col2>'.
+    Only one quotient is computed per pair.
+    """
+    new_features = pd.DataFrame(index=df.index)
+    for col1, col2 in itertools.combinations(cols, 2):
+        new_col = f"ratio_{col1}_{col2}"
+        new_features[new_col] = df[col1] / (df[col2] + eps)
+    return new_features
+
+
+def make_power(df, cols, orders=[2, 3]):
+    """
+    For each column in 'cols' and each exponent in 'orders',
+    compute the column raised to that power.
+    Returns a DataFrame with new columns named 'power_<col>_<order>'.
+    """
+    new_features = pd.DataFrame(index=df.index)
+    for col in cols:
+        for order in orders:
+            new_col = f"power_{col}_{order}"
+            new_features[new_col] = df[col] ** order
+    return new_features
+
+
+def make_density(df, eps=1e-4):
+    """
+    Computes biofilm density as Height/Volume for both Bacillus and Pathogen.
+    Expects the following columns to be present:
+      - Bacillus: 'B_Biofilm_Height', 'B_Biofilm_Volume'
+      - Pathogen:  'P_Biofilm_Height', 'P_Biofilm_Volume'
+    Returns a DataFrame with new columns 'B_Biofilm_Density' and 'P_Biofilm_Density'
+    (if the corresponding source columns exist).
+    """
+    new_features = pd.DataFrame(index=df.index)
+    if "B_Biofilm_Height" in df.columns and "B_Biofilm_Volume" in df.columns:
+        new_features["B_Biofilm_Density"] = df["B_Biofilm_Height"] / (
+            df["B_Biofilm_Volume"] + eps
+        )
+    if "P_Biofilm_Height" in df.columns and "P_Biofilm_Volume" in df.columns:
+        new_features["P_Biofilm_Density"] = df["P_Biofilm_Height"] / (
+            df["P_Biofilm_Volume"] + eps
+        )
+    return new_features
+
+
+def make_fake_score(df, eps=1e-4):
+    """
+    Computes a fake score defined as: 1 - (Height^3 / Volume)
+    for both Bacillus and Pathogen, based on:
+      - Bacillus: 'B_Biofilm_Height' and 'B_Biofilm_Volume'
+      - Pathogen:  'P_Biofilm_Height' and 'P_Biofilm_Volume'
+    Returns a DataFrame with new columns 'B_Fake_Score' and 'P_Fake_Score'
+    (if the corresponding source columns exist).
+    """
+    new_features = pd.DataFrame(index=df.index)
+    if "B_Biofilm_Height" in df.columns and "B_Biofilm_Volume" in df.columns:
+        new_features["B_Fake_Score"] = 1 - (df["B_Biofilm_Height"] ** 3) / (
+            df["B_Biofilm_Volume"] + eps
+        )
+    if "P_Biofilm_Height" in df.columns and "P_Biofilm_Volume" in df.columns:
+        new_features["P_Fake_Score"] = 1 - (df["P_Biofilm_Height"] ** 3) / (
+            df["P_Biofilm_Volume"] + eps
+        )
+    return new_features
+
+
+def get_feature_engineered_dataset(
+    ho_name,
+    method_df,
+    ho_sets,
+    cols_prod=[None],
+    cols_ratio=[None],
+    cols_pow=[None],
+    eps=1e-4,
+    target=["Score"],
+    remove_cols=["Unnamed: 0"],
+    shuffle=False,
+    random_state=62,
+):
+    """
+    Splits the dataset using get_train_test_split and applies feature engineering.
+    Each transformation (products, ratios, and powers) is applied only if the corresponding
+    column list is not [None]. Density and fake score features are always computed (if the
+    required columns are present).
+
+    Returns:
+        X_train_fe, X_test_fe, y_train, y_test
+    """
+    # Obtain the training and test splits.
+    X_train, X_test, y_train, y_test = get_train_test_split(
+        ho_name,
+        method_df,
+        ho_sets,
+        target=target,
+        remove_cols=remove_cols,
+        shuffle=shuffle,
+        random_state=random_state,
+    )
+
+    new_train_features = []
+    new_test_features = []
+
+    # Product features
+    if cols_prod != [None]:
+        prod_train = make_products(X_train, cols_prod)
+        prod_test = make_products(X_test, cols_prod)
+        new_train_features.append(prod_train)
+        new_test_features.append(prod_test)
+
+    # Ratio features
+    if cols_ratio != [None]:
+        ratio_train = make_ratios(X_train, cols_ratio, eps)
+        ratio_test = make_ratios(X_test, cols_ratio, eps)
+        new_train_features.append(ratio_train)
+        new_test_features.append(ratio_test)
+
+    # Power features
+    if cols_pow != [None]:
+        power_train = make_power(X_train, cols_pow)
+        power_test = make_power(X_test, cols_pow)
+        new_train_features.append(power_train)
+        new_test_features.append(power_test)
+
+    # Density features
+    density_train = make_density(X_train)
+    density_test = make_density(X_test)
+    new_train_features.append(density_train)
+    new_test_features.append(density_test)
+
+    # Fake score features
+    fake_score_train = make_fake_score(X_train)
+    fake_score_test = make_fake_score(X_test)
+    new_train_features.append(fake_score_train)
+    new_test_features.append(fake_score_test)
+
+    # Concatenate original features with newly engineered features
+    X_train_fe = pd.concat([X_train] + new_train_features, axis=1)
+    X_test_fe = pd.concat([X_test] + new_test_features, axis=1)
+
+    return X_train_fe, X_test_fe, y_train, y_test
 
 
 if __name__ == "__main__":

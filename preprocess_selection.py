@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.run:
+    if args.run == 1:
         # Define evaluation parameters
         METHOD = "combinatoric"
         MODE = args.mode
@@ -119,20 +119,28 @@ if __name__ == "__main__":
     if args.concat_results:
         all_results = []
         for file in os.listdir("Results/model_selection"):
-            if file.endswith(".csv") and mode in file and "_all_results" not in file:
+            if (
+                file.endswith(".csv")
+                and args.mode in file
+                and "_all_results" not in file
+            ):
                 all_results.append(pd.read_csv("Results/model_selection/" + file))
         if all_results != []:
             all_df = pd.concat(all_results, axis=0)
-            all_df.to_csv(f"Results/model_selection/{mode}_all_results.csv")
+            all_df.to_csv(f"Results/model_selection/{args.mode}_all_results.csv")
         else:
             print("No result files found.")
-            
+
     if args.concat_results:
         # Concatenate all CSV result files into one file.
         all_results = []
         results_folder = "Results/preprocess_selection"
         for file in os.listdir(results_folder):
-            if file.endswith(".csv") and args.mode in file and "_all_results" not in file:
+            if (
+                file.endswith(".csv")
+                and args.mode in file
+                and "_all_results" not in file
+            ):
                 all_results.append(pd.read_csv(os.path.join(results_folder, file)))
         if all_results:
             all_df = pd.concat(all_results, axis=0)

@@ -5,7 +5,12 @@ import warnings
 
 from tqdm import tqdm
 
-from datasets import get_train_test_split, all_possible_hold_outs, get_hold_out_sets
+from datasets import (
+    get_train_test_split,
+    all_possible_hold_outs,
+    get_hold_out_sets,
+    get_feature_engineered_dataset,
+)
 from utils import is_gpu_available
 
 from cuml.neighbors import KNeighborsRegressor
@@ -135,16 +140,36 @@ def evaluate_hold_out(
     remove_cols=[None],
     shuffle=False,
     random_state=62,
+    feature_eng=False,
+    cols_prod=[None],
+    cols_ratio=[None],
+    cols_pow=[None],
+    eps=1e-4,
 ):
-    X_train, X_test, y_train, y_test = get_train_test_split(
-        ho_name,
-        method_df,
-        ho_sets,
-        target=target,
-        remove_cols=remove_cols,
-        shuffle=shuffle,
-        random_state=random_state,
-    )
+    if not feature_eng:
+        X_train, X_test, y_train, y_test = get_train_test_split(
+            ho_name,
+            method_df,
+            ho_sets,
+            target=target,
+            remove_cols=remove_cols,
+            shuffle=shuffle,
+            random_state=random_state,
+        )
+    else:
+        X_train, X_test, y_train, y_test = get_feature_engineered_dataset(
+            ho_name,
+            method_df,
+            ho_sets,
+            cols_prod=cols_prod,
+            cols_ratio=cols_ratio,
+            cols_pow=cols_pow,
+            eps=eps,
+            target=target,
+            remove_cols=remove_cols,
+            shuffle=shuffle,
+            random_state=random_state,
+        )
 
     estimator.fit(X_train, np.ravel(y_train))
 
@@ -195,6 +220,11 @@ def evaluate_method(
     remove_cols=[None],
     shuffle=False,
     random_state=62,
+    feature_eng=False,
+    cols_prod=[None],
+    cols_ratio=[None],
+    cols_pow=[None],
+    eps=1e-4,
 ):
     result_list = []
     for i, ho_name in tqdm(enumerate(ho_sets.keys())):
@@ -209,6 +239,11 @@ def evaluate_method(
             remove_cols=remove_cols,
             shuffle=shuffle,
             random_state=random_state,
+            feature_eng=feature_eng,
+            cols_prod=cols_prod,
+            cols_ratio=cols_ratio,
+            cols_pow=cols_pow,
+            eps=eps,
         )
         result_list.append(ho_df)
     result_df = pd.concat(result_list, axis=0)
@@ -226,6 +261,11 @@ def evaluate(
     remove_cols=[None],
     shuffle=False,
     random_state=62,
+    feature_eng=False,
+    cols_prod=[None],
+    cols_ratio=[None],
+    cols_pow=[None],
+    eps=1e-4,
 ):
     results = []
     for method_name in tqdm(["avg", "random", "combinatoric"]):
@@ -250,9 +290,83 @@ def evaluate(
                 mode=mode,
                 shuffle=shuffle,
                 random_state=random_state,
+                feature_eng=feature_eng,
+                cols_prod=cols_prod,
+                cols_ratio=cols_ratio,
+                cols_pow=cols_pow,
+                eps=eps,
             )
             results.append(results_df)
         else:
             warn_message = f"{method_name} not found in dataset_dict with keys {dataset_dict.keys()}. Skipping this method"
             warnings.warn(warn_message)
     return pd.concat(results, axis=0)
+
+
+def select_features(
+    estimator,
+    estimator_name,
+    dataset_dict,
+    ho_folder_path="Data/Datasets",
+    suffix="_hold_outs.pkl",
+    mode="controled_homology",
+    target=["Score"],
+    candidates=[None],
+    remove_cols=[None],
+    save_path="Results/native_feature_selection",
+    step_name="1st",
+    shuffle=False,
+    random_state=62,
+    feature_eng=False,
+    cols_prod=[None],
+    cols_ratio=[None],
+    cols_pow=[None],
+    eps=1e-4,
+):
+    assert candidates != [None], (
+        "You must specify feature candidates for feature selection"
+    )
+
+    os.makedirs(save_path, exist_ok=True)
+
+    step_list = []
+    for feature in candidates:
+        remove_cols_copy = remove_cols + [feature]
+        results = evaluate(
+            estimator,
+            estimator_name,
+            dataset_dict,
+            ho_folder_path=ho_folder_path,
+            suffix=suffix,
+            mode=mode,
+            target=target,
+            remove_cols=remove_cols_copy,
+            random_state=random_state,
+            shuffle=shuffle,
+            feature_eng=feature_eng,
+            cols_prod=cols_prod,
+            cols_ratio=cols_ratio,
+            cols_pow=cols_pow,
+            eps=eps,
+        )
+        results_df = (
+            results if isinstance(results, pd.DataFrame) else pd.DataFrame(results)
+        )
+        results_df["Removed"] = [f"(-) {feature}" for i in range(results_df.shape[0])]
+        step_list.append(results_df)
+
+    step_df = pd.concat(step_list, axis=0)
+    step_df["Cross Mean (RMSE and MAE)"] = np.mean(step_df[["RMSE", "MAE"]], axis=1)
+    best_ablation = step_df["Removed"][
+        step_df["Cross Mean (RMSE and MAE)"]
+        == step_df["Cross Mean (RMSE and MAE)"].idxmin()
+    ].iloc[0]
+    best_ablation_score = step_df["Cross Mean (RMSE and MAE)"][
+        step_df["Removed"] == best_ablation
+    ].iloc[0]
+    step_df.to_csv(
+        save_path + f"/{step_name}_{estimator_name}_{mode}_results.csv",
+        index=False,
+    )
+
+    return best_ablation_score, best_ablation[4:]
