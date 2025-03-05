@@ -292,12 +292,12 @@ def select_features(
     step_list = []
     for feature in candidates:
         remove_cols_copy = remove_cols + [feature]
+        num_cols_copy = deepcopy(num_cols)
+        cat_cols_copy = deepcopy(cat_cols)
 
         if feature in num_cols:
-            num_cols_copy = deepcopy(num_cols)
             num_cols_copy.remove(feature)
         if feature in cat_cols:
-            cat_cols_copy = deepcopy(cat_cols)
             cat_cols_copy.remove(feature)
 
         estimator = create_pipeline(
