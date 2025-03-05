@@ -37,20 +37,19 @@ if __name__ == "__main__":
     )
 
     best_ablation = None
-    old_best = np.inf
-    best = 0
+    previous = np.inf
+    current = 0
 
     i = 0
     candidates = num_cols + cat_cols
-    while old_best > best:
+    while previous > current:
         if i != 0:
             # Remove previously eliminated feature
             candidates.pop(best_ablation)
             # Add it to remove_cols
             remove_cols.append(best_ablation)
 
-        old_best = best
-        best, best_ablation = select_features(
+        current, best_ablation = select_features(
             estimator,
             estimator_name,
             df_dict,

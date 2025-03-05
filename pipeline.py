@@ -359,7 +359,7 @@ def select_features(
     step_df["Cross Mean (RMSE and MAE)"] = np.mean(step_df[["RMSE", "MAE"]], axis=1)
     best_ablation = step_df["Removed"][
         step_df["Cross Mean (RMSE and MAE)"]
-        == step_df["Cross Mean (RMSE and MAE)"].idxmin()
+        == step_df["Cross Mean (RMSE and MAE)"].min()
     ].iloc[0]
     best_ablation_score = step_df["Cross Mean (RMSE and MAE)"][
         step_df["Removed"] == best_ablation
