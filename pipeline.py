@@ -300,7 +300,11 @@ def select_features(
         if feature in cat_cols:
             cat_cols_copy.remove(feature)
 
-        estimator = create_pipeline(
+        print(f"Training without {feature}..")
+        print(f"Num_cols: {num_cols_copy}")
+        print(f"Cat_cols: {cat_cols_copy}")
+
+        fe_estimator = create_pipeline(
             num_cols_copy,
             cat_cols_copy,
             imputer=imputer,
@@ -310,7 +314,7 @@ def select_features(
         )
 
         results = evaluate(
-            estimator,
+            fe_estimator,
             estimator_name,
             dataset_dict,
             ho_folder_path=ho_folder_path,
