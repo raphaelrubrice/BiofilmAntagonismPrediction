@@ -8,5 +8,4 @@ seaborn==0.13.2
 tqdm==4.66.2
 joblib==1.4.2
 numba==0.59.1
-cuml==24.2.0
 

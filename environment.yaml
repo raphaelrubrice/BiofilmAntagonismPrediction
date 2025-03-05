@@ -16,5 +16,4 @@ dependencies:
   - pip
   - pip:
       - numba==0.59.1
-      - cuml==24.2.0
 
