@@ -198,33 +198,55 @@ def get_train_test_split(
     ho_name,
     method_df,
     ho_sets,
+    load=False,
+    load_path=None,
     target=["Score"],
     remove_cols=["Unnamed: 0"],
     shuffle=False,
     random_state=62,
+    save=False,
+    save_path=None,
 ):
-    # hold_out_mask = ho_sets[ho_name]
-    train_idx, test_idx = ho_sets[ho_name]
-    features = [
-        col
-        for col in method_df.columns
-        if (col not in target) and (col not in remove_cols)
-    ]
+    if not load:
+        # hold_out_mask = ho_sets[ho_name]
+        train_idx, test_idx = ho_sets[ho_name]
+        features = [
+            col
+            for col in method_df.columns
+            if (col not in target) and (col not in remove_cols)
+        ]
 
-    # Return X_train, X_test, y_train, y_test
-    X_train = method_df.loc[train_idx][features]
-    X_test = method_df.loc[test_idx][features]
+        # Return X_train, X_test, y_train, y_test
+        X_train = method_df.loc[train_idx][features]
+        X_test = method_df.loc[test_idx][features]
 
-    y_train = method_df.loc[train_idx][target]
-    y_test = method_df.loc[test_idx][target]
-    # X_train = method_df[~hold_out_mask][features]
-    # X_test = method_df[hold_out_mask][features]
+        y_train = method_df.loc[train_idx][target]
+        y_test = method_df.loc[test_idx][target]
+        # X_train = method_df[~hold_out_mask][features]
+        # X_test = method_df[hold_out_mask][features]
 
-    # y_train = method_df[~hold_out_mask][target]
-    # y_test = method_df[hold_out_mask][target]
-    if shuffle:
-        X_train = X_train.sample(frac=1, random_state=random_state, ignore_index=False)
-        y_train = y_train.loc[X_train.index]
+        # y_train = method_df[~hold_out_mask][target]
+        # y_test = method_df[hold_out_mask][target]
+        if shuffle:
+            X_train = X_train.sample(
+                frac=1, random_state=random_state, ignore_index=False
+            )
+            y_train = y_train.loc[X_train.index]
+
+        if save:
+            assert save_path is not None, (
+                "You must specify a loading path when load=True"
+            )
+            print("Saving dataset..")
+            with open(save_path, "wb") as f:
+                pkl.dump((X_train, X_test, y_train, y_test), f)
+            print("Dataset saved.")
+    else:
+        assert load_path is not None, "You must specify a loading path when load=True"
+        print("Loading precomputed dataset..")
+        with open(load_path, "rb") as f:
+            X_train, X_test, y_train, y_test = pkl.load(f)
+        print("Dataset loaded.")
 
     return X_train, X_test, y_train, y_test
 
@@ -327,10 +349,9 @@ def make_fake_score(df, eps=1e-4):
     return new_features
 
 
-def get_feature_engineered_dataset(
-    ho_name,
+def make_feature_engineered_dataset(
     method_df,
-    ho_sets,
+    save_path,
     cols_prod=[None],
     cols_ratio=[None],
     cols_pow=[None],
@@ -338,8 +359,6 @@ def get_feature_engineered_dataset(
     eps=1e-4,
     target=["Score"],
     remove_cols=["Unnamed: 0"],
-    shuffle=False,
-    random_state=62,
 ):
     """
     Splits the dataset using get_train_test_split and applies feature engineering.
@@ -350,58 +369,43 @@ def get_feature_engineered_dataset(
     Returns:
         X_train_fe, X_test_fe, y_train, y_test
     """
-    # Obtain the training and test splits.
-    X_train, X_test, y_train, y_test = get_train_test_split(
-        ho_name,
-        method_df,
-        ho_sets,
-        target=target,
-        remove_cols=remove_cols,
-        shuffle=shuffle,
-        random_state=random_state,
-    )
-
-    new_train_features = []
-    new_test_features = []
+    new_features = []
+    cols = [
+        col for col in method_df.columns if col not in target and col not in remove_cols
+    ]
 
     # Product features
     if cols_prod != [None]:
-        prod_train = make_products(X_train, cols_prod)
-        prod_test = make_products(X_test, cols_prod)
-        new_train_features.append(prod_train)
-        new_test_features.append(prod_test)
+        prod_df = make_products(method_df[cols], cols_prod)
+        new_features.append(prod_df)
 
     # Ratio features
     if cols_ratio != [None]:
-        ratio_train = make_ratios(X_train, cols_ratio, eps)
-        ratio_test = make_ratios(X_test, cols_ratio, eps)
-        new_train_features.append(ratio_train)
-        new_test_features.append(ratio_test)
+        ratio_df = make_ratios(method_df[cols], cols_ratio, eps)
+        new_features.append(ratio_df)
 
     # Power features
     if cols_pow != [None]:
-        power_train = make_power(X_train, cols_pow, orders=pow_orders)
-        power_test = make_power(X_test, cols_pow, orders=pow_orders)
-        new_train_features.append(power_train)
-        new_test_features.append(power_test)
+        power_df = make_power(method_df[cols], cols_pow, orders=pow_orders)
+        new_features.append(power_df)
 
     # Density features
-    density_train = make_density(X_train)
-    density_test = make_density(X_test)
-    new_train_features.append(density_train)
-    new_test_features.append(density_test)
+    density_df = make_density(method_df[cols])
+    new_features.append(density_df)
 
     # Fake score features
-    fake_score_train = make_fake_score(X_train)
-    fake_score_test = make_fake_score(X_test)
-    new_train_features.append(fake_score_train)
-    new_test_features.append(fake_score_test)
+    fake_score_df = make_fake_score(method_df[cols])
+    new_features.append(fake_score_df)
 
     # Concatenate original features with newly engineered features
-    X_train_fe = pd.concat([X_train] + new_train_features, axis=1)
-    X_test_fe = pd.concat([X_test] + new_test_features, axis=1)
+    new_df = pd.concat(
+        [method_df[[col for col in method_df.columns if col not in cols]]]
+        + new_features,
+        axis=1,
+    )
 
-    return X_train_fe, X_test_fe, y_train, y_test
+    new_df.to_csv(save_path)
+    return new_df
 
 
 if __name__ == "__main__":

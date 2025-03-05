@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import json, os
 import warnings
+from copy import deepcopy
 
 from tqdm import tqdm
 
@@ -140,38 +141,16 @@ def evaluate_hold_out(
     remove_cols=[None],
     shuffle=False,
     random_state=62,
-    feature_eng=False,
-    cols_prod=[None],
-    cols_ratio=[None],
-    cols_pow=[None],
-    pow_orders=[2, 3],
-    eps=1e-4,
 ):
-    if not feature_eng:
-        X_train, X_test, y_train, y_test = get_train_test_split(
-            ho_name,
-            method_df,
-            ho_sets,
-            target=target,
-            remove_cols=remove_cols,
-            shuffle=shuffle,
-            random_state=random_state,
-        )
-    else:
-        X_train, X_test, y_train, y_test = get_feature_engineered_dataset(
-            ho_name,
-            method_df,
-            ho_sets,
-            cols_prod=cols_prod,
-            cols_ratio=cols_ratio,
-            cols_pow=cols_pow,
-            pow_orders=pow_orders,
-            eps=eps,
-            target=target,
-            remove_cols=remove_cols,
-            shuffle=shuffle,
-            random_state=random_state,
-        )
+    X_train, X_test, y_train, y_test = get_train_test_split(
+        ho_name,
+        method_df,
+        ho_sets,
+        target=target,
+        remove_cols=remove_cols,
+        shuffle=shuffle,
+        random_state=random_state,
+    )
 
     estimator.fit(X_train, np.ravel(y_train))
 
@@ -222,12 +201,6 @@ def evaluate_method(
     remove_cols=[None],
     shuffle=False,
     random_state=62,
-    feature_eng=False,
-    cols_prod=[None],
-    cols_ratio=[None],
-    cols_pow=[None],
-    pow_orders=[2, 3],
-    eps=1e-4,
 ):
     result_list = []
     for i, ho_name in tqdm(enumerate(ho_sets.keys())):
@@ -242,12 +215,6 @@ def evaluate_method(
             remove_cols=remove_cols,
             shuffle=shuffle,
             random_state=random_state,
-            feature_eng=feature_eng,
-            cols_prod=cols_prod,
-            cols_ratio=cols_ratio,
-            cols_pow=cols_pow,
-            pow_orders=pow_orders,
-            eps=eps,
         )
         result_list.append(ho_df)
     result_df = pd.concat(result_list, axis=0)
@@ -265,12 +232,6 @@ def evaluate(
     remove_cols=[None],
     shuffle=False,
     random_state=62,
-    feature_eng=False,
-    cols_prod=[None],
-    cols_ratio=[None],
-    cols_pow=[None],
-    pow_orders=[2, 3],
-    eps=1e-4,
 ):
     results = []
     for method_name in tqdm(["avg", "random", "combinatoric"]):
@@ -295,12 +256,6 @@ def evaluate(
                 mode=mode,
                 shuffle=shuffle,
                 random_state=random_state,
-                feature_eng=feature_eng,
-                cols_prod=cols_prod,
-                cols_ratio=cols_ratio,
-                cols_pow=cols_pow,
-                pow_orders=pow_orders,
-                eps=eps,
             )
             results.append(results_df)
         else:
@@ -323,12 +278,10 @@ def select_features(
     step_name="1st",
     shuffle=False,
     random_state=62,
-    feature_eng=False,
-    cols_prod=[None],
-    cols_ratio=[None],
-    cols_pow=[None],
-    pow_orders=[2, 3],
-    eps=1e-4,
+    imputer="KNNImputer",
+    scaler="RobustScaler",
+    num_cols=None,
+    cat_cols=None,
 ):
     assert candidates != [None], (
         "You must specify feature candidates for feature selection"
@@ -339,6 +292,23 @@ def select_features(
     step_list = []
     for feature in candidates:
         remove_cols_copy = remove_cols + [feature]
+
+        if feature in num_cols:
+            num_cols_copy = deepcopy(num_cols)
+            num_cols_copy.pop(feature)
+        if feature in cat_cols:
+            cat_cols_copy = deepcopy(cat_cols)
+            cat_cols_copy.pop(feature)
+
+        estimator = create_pipeline(
+            num_cols_copy,
+            cat_cols_copy,
+            imputer=imputer,
+            scaler=scaler,
+            estimator=estimator,
+            model_name=estimator_name,
+        )
+
         results = evaluate(
             estimator,
             estimator_name,
@@ -350,12 +320,6 @@ def select_features(
             remove_cols=remove_cols_copy,
             random_state=random_state,
             shuffle=shuffle,
-            feature_eng=feature_eng,
-            cols_prod=cols_prod,
-            cols_ratio=cols_ratio,
-            cols_pow=cols_pow,
-            pow_orders=pow_orders,
-            eps=eps,
         )
         results_df = (
             results if isinstance(results, pd.DataFrame) else pd.DataFrame(results)

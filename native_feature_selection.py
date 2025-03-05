@@ -28,14 +28,6 @@ if __name__ == "__main__":
         verbose=-1,
     )
     estimator_name = "LGBMRegressor"
-    estimator = create_pipeline(
-        num_cols,
-        cat_cols,
-        imputer="KNNImputer",
-        scaler="RobustScaler",
-        estimator=estimator,
-        model_name=estimator_name,
-    )
 
     best_ablation = None
     previous = np.inf
@@ -64,6 +56,10 @@ if __name__ == "__main__":
             step_name=f"step_{i + 1}",
             shuffle=False,
             random_state=62,
+            imputer="KNNImputer",
+            scaler="RobustScaler",
+            num_cols=num_cols,
+            cat_cols=cat_cols,
         )
         i += 1
 

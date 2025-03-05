@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 
 from pipeline import create_pipeline, select_features
+from datasets import make_feature_engineered_dataset
 from plots import plot_feature_selection
 
 from lightgbm import LGBMRegressor
@@ -21,6 +22,7 @@ if __name__ == "__main__":
         for col in df_dict["combinatoric"].columns
         if col not in cat_cols + remove_cols + target
     ]
+
     estimator = LGBMRegressor(
         random_state=62,
         n_jobs=-1,
@@ -44,6 +46,22 @@ if __name__ == "__main__":
 
     i = 0
     candidates = num_cols + cat_cols
+
+    # Save Feature Engineering to avoid recomputation at each step
+    FE_combinatoric_df = make_feature_engineered_dataset(
+        combinatoric_df,
+        "Data/Datasets/combinatoric_FeatureEng.csv",
+        cols_prod=candidates,
+        cols_ratio=num_cols,
+        cols_pow=num_cols,
+        pow_orders=[2, 3],
+        eps=1e-4,
+        target=target,
+        remove_cols=remove_cols,
+    )
+
+    df_dict = {"combinatoric": FE_combinatoric_df}
+
     while previous > current:
         if i != 0:
             # Remove previously eliminated feature
