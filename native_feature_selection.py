@@ -4,6 +4,7 @@ import os
 
 from lightgbm import LGBMRegressor
 from pipeline import select_features, create_pipeline
+from plots import plot_feature_selection
 
 
 if __name__ == "__main__":
@@ -65,3 +66,10 @@ if __name__ == "__main__":
             random_state=62,
         )
         i += 1
+
+    plot_feature_selection(
+        "Results/native_feature_selection", "RMSE", "Results/native_feature_selection"
+    )
+    plot_feature_selection(
+        "Results/native_feature_selection", "MAE", "Results/native_feature_selection"
+    )

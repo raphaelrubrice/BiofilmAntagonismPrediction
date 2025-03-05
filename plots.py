@@ -729,17 +729,116 @@ def summary_preprocess_selection(
         plt.show()
 
 
-def plot_model_and_dataset_selection(metric):
-    assert metric in ["mae", "mape", "rmse", "r2"], (
-        "metric must be in the following ['mae', 'mape', 'rmse', 'r2']"
+def plot_feature_selection(folder_path, metric, save_path):
+    """
+    Plot a bar histogram showing feature selection performance.
+
+    For each CSV in folder_path, the function retrieves the best performance (according to the metric).
+    The first bar corresponds to using all features ("All features"), the last to the final step ("Final Step"),
+    and the intermediate bars to ablation steps ("Step 1", "Step 2", ...). Among the intermediate steps,
+    the one with the best performance (lowest for most metrics, highest for R2) is highlighted with a distinct color.
+
+    The resulting plot is publication-ready and saved as a PDF at:
+       f"{save_path}_feature_selection.pdf"
+
+    Parameters:
+      folder_path : str
+          Path to the folder containing CSV files.
+      metric : str
+          Performance metric name (one of ["RMSE", "MAE", "std_abs_err", "MAPE", "std_abs_relative_err", "R2"]).
+      save_path : str
+          Base save path (the figure will be saved as f"{save_path}_feature_selection.pdf").
+    """
+    # List CSV files in folder_path and sort them (assumed to be in order of feature selection steps)
+    csv_files = sorted(
+        [
+            os.path.join(folder_path, f)
+            for f in os.listdir(folder_path)
+            if f.endswith(".csv")
+        ]
+    )
+    if not csv_files:
+        raise ValueError("No CSV files found in the specified folder.")
+
+    step_names = []
+    performance_values = []
+
+    # For each CSV file, read the metric column and choose the "best" value.
+    # For most metrics (e.g., RMSE, MAE), lower is better. For R2, higher is better.
+    for i, file in enumerate(csv_files):
+        df = pd.read_csv(file)
+        if metric not in df.columns:
+            raise ValueError(f"Metric column '{metric}' not found in file {file}.")
+        # Determine best value based on metric direction.
+        if metric == "R2":
+            best_val = df[metric].max()
+        else:
+            best_val = df[metric].min()
+        removed = df["Removed"][df[metric] == best_val]
+        performance_values.append(best_val)
+
+        # Label the steps: first file, intermediate steps, and final file.
+        if i == 0:
+            step_names.append("All features")
+        elif i == len(csv_files) - 1:
+            step_names.append("Final Step Best: {removed}")
+        else:
+            step_names.append(f"Step {i} Best: {removed}")
+
+    # Identify the best among intermediate steps (if any)
+    intermediate_vals = performance_values[1:-1]
+    if intermediate_vals:
+        if metric == "R2":
+            best_intermediate_idx = (
+                np.argmax(intermediate_vals) + 1
+            )  # offset by 1 for overall index
+        else:
+            best_intermediate_idx = np.argmin(intermediate_vals) + 1
+    else:
+        best_intermediate_idx = None
+
+    # Define colors:
+    # - First bar ("All features") gets a distinct color.
+    # - The best intermediate bar gets another distinct color.
+    # - The final bar ("Final Step") gets a third distinct color.
+    # - All other intermediate bars share a default color.
+    first_color = "blue"
+    best_color = "green"
+    final_color = "red"
+    default_color = "lightgray"
+
+    colors = []
+    for i in range(len(step_names)):
+        if i == 0:
+            colors.append(first_color)
+        elif i == len(step_names) - 1:
+            colors.append(final_color)
+        elif best_intermediate_idx is not None and i == best_intermediate_idx:
+            colors.append(best_color)
+        else:
+            colors.append(default_color)
+
+    # Create the bar plot.
+    plt.figure(figsize=(8, 6))
+    bars = plt.bar(
+        range(len(step_names)), performance_values, color=colors, edgecolor="black"
     )
 
-    CV_FILES = [
-        f for f in os.listdir("./Results/model_selection") if f.startswith("cv_")
-    ]
-    MODELS = [f[3 : f[3:].index("_") + 3] for f in CV_FILES]
-    print(CV_FILES)
-    print(MODELS)
+    # Annotate each bar with its performance value.
+    for i, bar in enumerate(bars):
+        height = bar.get_height()
+        plt.text(i, height, f"{height:.3f}", ha="center", va="bottom", fontsize=10)
+
+    plt.xticks(range(len(step_names)), step_names, rotation=45, fontsize=12)
+    plt.ylabel(metric, fontsize=14)
+    plt.xlabel("Feature Selection Step", fontsize=14)
+    plt.title("Feature Selection Performance", fontsize=16, fontweight="bold")
+    plt.tight_layout()
+
+    # Save the figure as PDF.
+    save_filename = f"{save_path}_feature_selection.pdf"
+    plt.savefig(save_filename, format="pdf", bbox_inches="tight")
+    plt.close()
 
 
 if __name__ == "__main__":
