@@ -144,6 +144,7 @@ def evaluate_hold_out(
     cols_prod=[None],
     cols_ratio=[None],
     cols_pow=[None],
+    pow_orders=[2, 3],
     eps=1e-4,
 ):
     if not feature_eng:
@@ -164,6 +165,7 @@ def evaluate_hold_out(
             cols_prod=cols_prod,
             cols_ratio=cols_ratio,
             cols_pow=cols_pow,
+            pow_orders=pow_orders,
             eps=eps,
             target=target,
             remove_cols=remove_cols,
@@ -224,6 +226,7 @@ def evaluate_method(
     cols_prod=[None],
     cols_ratio=[None],
     cols_pow=[None],
+    pow_orders=[2, 3],
     eps=1e-4,
 ):
     result_list = []
@@ -243,6 +246,7 @@ def evaluate_method(
             cols_prod=cols_prod,
             cols_ratio=cols_ratio,
             cols_pow=cols_pow,
+            pow_orders=pow_orders,
             eps=eps,
         )
         result_list.append(ho_df)
@@ -265,6 +269,7 @@ def evaluate(
     cols_prod=[None],
     cols_ratio=[None],
     cols_pow=[None],
+    pow_orders=[2, 3],
     eps=1e-4,
 ):
     results = []
@@ -294,6 +299,7 @@ def evaluate(
                 cols_prod=cols_prod,
                 cols_ratio=cols_ratio,
                 cols_pow=cols_pow,
+                pow_orders=pow_orders,
                 eps=eps,
             )
             results.append(results_df)
@@ -321,6 +327,7 @@ def select_features(
     cols_prod=[None],
     cols_ratio=[None],
     cols_pow=[None],
+    pow_orders=[2, 3],
     eps=1e-4,
 ):
     assert candidates != [None], (
@@ -347,6 +354,7 @@ def select_features(
             cols_prod=cols_prod,
             cols_ratio=cols_ratio,
             cols_pow=cols_pow,
+            pow_orders=pow_orders,
             eps=eps,
         )
         results_df = (

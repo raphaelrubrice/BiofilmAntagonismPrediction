@@ -1,10 +1,11 @@
+import os
 import pandas as pd
 import numpy as np
-import os
+
+from pipeline import create_pipeline, select_features
+from plots import plot_feature_selection
 
 from lightgbm import LGBMRegressor
-from pipeline import select_features, create_pipeline
-from plots import plot_feature_selection
 
 
 if __name__ == "__main__":
@@ -60,16 +61,21 @@ if __name__ == "__main__":
             target=["Score"],
             candidates=candidates,
             remove_cols=remove_cols,
-            save_path="Results/native_feature_selection",
+            save_path="Results/feature_engineering",
             step_name=f"step_{i + 1}",
             shuffle=False,
             random_state=62,
+            feature_eng=True,
+            cols_prod=candidates,
+            cols_ratio=num_cols,
+            cols_pow=num_cols,
+            pow_orders=[2, 3],
         )
         i += 1
 
     plot_feature_selection(
-        "Results/native_feature_selection", "RMSE", "Results/native_feature_selection"
+        "Results/feature_engineering", "RMSE", "Results/feature_engineering"
     )
     plot_feature_selection(
-        "Results/native_feature_selection", "MAE", "Results/native_feature_selection"
+        "Results/feature_engineering", "MAE", "Results/feature_engineering"
     )

@@ -6,8 +6,9 @@ import pickle as pkl
 from pathlib import Path
 import argparse
 import itertools
+from copy import deepcopy
 
-
+from datasets import get_train_test_split  # Assumes this function is defined elsewhere
 from sklearn.model_selection import KFold
 
 
@@ -229,18 +230,29 @@ def get_train_test_split(
     return X_train, X_test, y_train, y_test
 
 
-import pandas as pd
-import numpy as np
-import itertools
-from datasets import get_train_test_split  # Assumes this function is defined elsewhere
-
-
 def make_products(df, cols):
     """
     For each unique pair of columns in 'cols', compute their product.
     Returns a DataFrame with the new columns named 'prod_<col1>_<col2>'.
     """
     new_features = pd.DataFrame(index=df.index)
+
+    original_cols = [col for col in df.columns]
+    for col in cols:
+        if isinstance(df[col].iloc[0], str):
+            print(f"Column {col} appears to be categorical.")
+            print("One Hot Encoding..")
+            df_col = pd.get_dummies(df[col])
+
+            # Add one hot columns and remove original one
+            cols += [c for c in df_col.columns]
+            cols.pop(col)
+            # Avoid having the original and the one hot version of the same column
+            original_cols_copy = deepcopy(original_cols)
+            original_cols_copy.pop(col)
+            df = pd.concat([df[original_cols_copy], df_col], axis=1)
+            print("Updated dataframe and column list.")
+
     for col1, col2 in itertools.combinations(cols, 2):
         new_col = f"prod_{col1}_{col2}"
         new_features[new_col] = df[col1] * df[col2]
@@ -323,6 +335,7 @@ def get_feature_engineered_dataset(
     cols_prod=[None],
     cols_ratio=[None],
     cols_pow=[None],
+    pow_orders=[2, 3],
     eps=1e-4,
     target=["Score"],
     remove_cols=["Unnamed: 0"],
@@ -368,8 +381,8 @@ def get_feature_engineered_dataset(
 
     # Power features
     if cols_pow != [None]:
-        power_train = make_power(X_train, cols_pow)
-        power_test = make_power(X_test, cols_pow)
+        power_train = make_power(X_train, cols_pow, orders=pow_orders)
+        power_test = make_power(X_test, cols_pow, orders=pow_orders)
         new_train_features.append(power_train)
         new_test_features.append(power_test)
 
