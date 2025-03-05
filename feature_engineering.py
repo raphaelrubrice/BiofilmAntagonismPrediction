@@ -65,7 +65,7 @@ if __name__ == "__main__":
     while previous > current:
         if i != 0:
             # Remove previously eliminated feature
-            candidates.pop(best_ablation)
+            candidates.remove(best_ablation)
             # Add it to remove_cols
             remove_cols.append(best_ablation)
 

@@ -295,10 +295,10 @@ def select_features(
 
         if feature in num_cols:
             num_cols_copy = deepcopy(num_cols)
-            num_cols_copy.pop(feature)
+            num_cols_copy.remove(feature)
         if feature in cat_cols:
             cat_cols_copy = deepcopy(cat_cols)
-            cat_cols_copy.pop(feature)
+            cat_cols_copy.remove(feature)
 
         estimator = create_pipeline(
             num_cols_copy,
