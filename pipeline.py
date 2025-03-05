@@ -10,7 +10,7 @@ from datasets import (
     get_train_test_split,
     all_possible_hold_outs,
     get_hold_out_sets,
-    get_feature_engineered_dataset,
+    make_feature_engineered_dataset,
 )
 from utils import is_gpu_available
 
