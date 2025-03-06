@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 import os
+import gc
+import cupy as cp
 
 from lightgbm import LGBMRegressor
 from pipeline import select_features, create_pipeline
@@ -39,6 +41,11 @@ if __name__ == "__main__":
         if i != 0:
             # Remove previously eliminated feature
             candidates.remove(best_ablation)
+            if best_ablation in num_cols:
+                num_cols.remove(best_ablation)
+            if best_ablation in cat_cols:
+                cat_cols.remove(best_ablation)
+
             # Add it to remove_cols
             remove_cols.append(best_ablation)
 
@@ -62,6 +69,13 @@ if __name__ == "__main__":
             cat_cols=cat_cols,
         )
         i += 1
+
+        # Explicit cleanup: delete temporary variables and force GPU memory free
+        gc.collect()
+        try:
+            cp.get_default_memory_pool().free_all_blocks()
+        except ImportError:
+            pass  # If cupy isn't used, ignore
 
     plot_feature_selection(
         "Results/native_feature_selection", "RMSE", "Results/native_feature_selection"
