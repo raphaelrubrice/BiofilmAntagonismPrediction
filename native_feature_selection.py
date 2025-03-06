@@ -32,7 +32,7 @@ if __name__ == "__main__":
     estimator_name = "LGBMRegressor"
 
     best_ablation = None
-    previous = np.inf
+    previous = (0.156 + 0.120) / 2  # RMSE and MAE Cross target mean value
     current = 0
 
     i = 0
