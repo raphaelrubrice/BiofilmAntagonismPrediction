@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
     i = 0
     candidates = num_cols + cat_cols
-    while previous > current:
+    while previous > current and len(candidates) > 1:
         if i != 0:
             # Remove previously eliminated feature
             candidates.remove(best_ablation)
@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
             # Add it to remove_cols
             remove_cols.append(best_ablation)
-
+        previous = current
         current, best_ablation = select_features(
             estimator,
             estimator_name,
