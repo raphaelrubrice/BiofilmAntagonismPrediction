@@ -836,7 +836,7 @@ def plot_feature_selection(folder_path, metric, save_path):
     plt.tight_layout()
 
     # Save the figure as PDF.
-    save_filename = f"{save_path}_feature_selection.pdf"
+    save_filename = f"{save_path}_{metric}_feature_selection.pdf"
     plt.savefig(save_filename, format="pdf", bbox_inches="tight")
     plt.close()
 

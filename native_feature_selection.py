@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
             # Add it to remove_cols
             remove_cols.append(best_ablation)
-        previous = current
+            previous = current
         current, best_ablation = select_features(
             estimator,
             estimator_name,

@@ -41,7 +41,7 @@ if __name__ == "__main__":
     )
 
     best_ablation = None
-    previous = np.inf
+    previous = (0.156 + 0.120) / 2  # RMSE and MAE Cross target mean value
     current = 0
 
     i = 0
@@ -62,13 +62,18 @@ if __name__ == "__main__":
 
     df_dict = {"combinatoric": FE_combinatoric_df}
 
-    while previous > current:
+    while previous > current and len(candidates) > 1:
         if i != 0:
             # Remove previously eliminated feature
             candidates.remove(best_ablation)
+            if best_ablation in num_cols:
+                num_cols.remove(best_ablation)
+            if best_ablation in cat_cols:
+                cat_cols.remove(best_ablation)
+
             # Add it to remove_cols
             remove_cols.append(best_ablation)
-
+            previous = current
         current, best_ablation = select_features(
             estimator,
             estimator_name,
