@@ -766,24 +766,25 @@ def plot_feature_selection(folder_path, metric, save_path):
     # For each CSV file, read the metric column and choose the "best" value.
     # For most metrics (e.g., RMSE, MAE), lower is better. For R2, higher is better.
     for i, file in enumerate(csv_files):
-        df = pd.read_csv(file)
-        if metric not in df.columns:
-            raise ValueError(f"Metric column '{metric}' not found in file {file}.")
-        # Determine best value based on metric direction.
-        if metric == "R2":
-            best_val = df[metric].max()
-        else:
-            best_val = df[metric].min()
-        removed = df["Removed"][df[metric] == best_val]
-        performance_values.append(best_val)
+        if "summary" not in file:
+            df = pd.read_csv(file)
+            if metric not in df.columns:
+                raise ValueError(f"Metric column '{metric}' not found in file {file}.")
+            # Determine best value based on metric direction.
+            if metric == "R2":
+                best_val = df[metric].max()
+            else:
+                best_val = df[metric].min()
+            removed = df["Removed"][df[metric] == best_val]
+            performance_values.append(best_val)
 
-        # Label the steps: first file, intermediate steps, and final file.
-        if i == 0:
-            step_names.append("All features")
-        elif i == len(csv_files) - 1:
-            step_names.append("Final Step Best: {removed}")
-        else:
-            step_names.append(f"Step {i} Best: {removed}")
+            # Label the steps: first file, intermediate steps, and final file.
+            if i == 0:
+                step_names.append("All features")
+            elif i == len(csv_files) - 1:
+                step_names.append("Final Step Best: {removed}")
+            else:
+                step_names.append(f"Step {i} Best: {removed}")
 
     # Identify the best among intermediate steps (if any)
     intermediate_vals = performance_values[1:-1]
