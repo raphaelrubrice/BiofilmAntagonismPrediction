@@ -25,6 +25,8 @@ if __name__ == "__main__":
     estimator = LGBMRegressor(
         random_state=62,
         n_jobs=-1,
+        gpu_use_dp=False,
+        tree_learner="serial",
         device="cuda",
         verbose_eval=False,
         verbose=-1,

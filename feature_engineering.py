@@ -89,11 +89,10 @@ if __name__ == "__main__":
             step_name=f"step_{i + 1}",
             shuffle=False,
             random_state=62,
-            feature_eng=True,
-            cols_prod=candidates,
-            cols_ratio=num_cols,
-            cols_pow=num_cols,
-            pow_orders=[2, 3],
+            imputer="KNNImputer",
+            scaler="RobustScaler",
+            num_cols=num_cols,
+            cat_cols=cat_cols,
         )
         i += 1
 

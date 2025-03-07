@@ -184,6 +184,7 @@ def evaluate_hold_out(
         "R2": [r2_score(y_test, yhat)],
         "Y_hat": [yhat],
         "Y_true": [y_test.to_numpy()],
+        "n_samples": yhat.shape[0],
     }
     # print(results)
     df = pd.DataFrame(results)
@@ -343,6 +344,32 @@ def select_features(
 
     step_df = pd.concat(step_list, axis=0)
     step_df["Cross Mean (RMSE and MAE)"] = np.mean(step_df[["RMSE", "MAE"]], axis=1)
+
+    # Compute the weighted cross mean per group using "n_samples" as weights
+    summary_step = (
+        step_df.groupby("Removed")
+        .apply(
+            lambda g: np.sum(g["Cross Mean (RMSE and MAE)"] * g["n_samples"])
+            / np.sum(g["n_samples"])
+        )
+        .reset_index(name="Weighted Cross Mean (RMSE and MAE)")
+    )
+
+    # Compute the unweighted mean
+    summary_step["Unweighted Mean (RMSE and MAE)"] = (
+        step_df.groupby("Removed")["Cross Mean (RMSE and MAE)"].mean().values
+    )
+
+    # Select the best ablation based on the weighted metric
+    best_ablation = summary_step["Removed"].iloc[
+        summary_step["Weighted Cross Mean (RMSE and MAE)"].idxmin()
+    ]
+    best_ablation_score = summary_step["Weighted Cross Mean (RMSE and MAE)"].min()
+
+    print(
+        "Best ablation feature (weighted):", best_ablation[4:]
+    )  # Removing "(-) " prefix
+    print("Best weighted metric:", best_ablation_score)
 
     # Compute the mean cross mean metric for each ablation experiment
     summary_step = (
