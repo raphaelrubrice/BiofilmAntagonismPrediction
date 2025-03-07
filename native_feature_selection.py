@@ -48,7 +48,10 @@ if __name__ == "__main__":
 
             # Add it to remove_cols
             remove_cols.append(best_ablation)
+
+            # Update previous best
             previous = current
+
         current, best_ablation = select_features(
             estimator,
             estimator_name,
@@ -70,6 +73,9 @@ if __name__ == "__main__":
         )
         i += 1
 
+        print("*********")
+        print("Step Best: {current}, without {best_ablation}")
+        print("*********")
         # Explicit cleanup: delete temporary variables and force GPU memory free
         gc.collect()
         try:

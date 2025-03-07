@@ -333,15 +333,30 @@ def select_features(
 
     step_df = pd.concat(step_list, axis=0)
     step_df["Cross Mean (RMSE and MAE)"] = np.mean(step_df[["RMSE", "MAE"]], axis=1)
-    best_ablation = step_df["Removed"][
-        step_df["Cross Mean (RMSE and MAE)"]
-        == step_df["Cross Mean (RMSE and MAE)"].min()
-    ].iloc[0]
-    best_ablation_score = step_df["Cross Mean (RMSE and MAE)"][
-        step_df["Removed"] == best_ablation
-    ].iloc[0]
+
+    # Compute the mean cross mean metric for each ablation experiment
+    summary_step = (
+        step_df[["Cross Mean (RMSE and MAE)", "Removed"]].groupby(by="Removed").mean()
+    )
+
+    # Extract which was the best
+    best_ablation = summary_step["Cross Mean (RMSE and MAE)"].idxmin()
+    best_ablation_score = summary_step["Cross Mean (RMSE and MAE)"].min()
+
+    # best_ablation = step_df["Removed"][
+    #     step_df["Cross Mean (RMSE and MAE)"]
+    #     == summary_step.min()
+    # ].iloc[0]
+    # best_ablation_score = step_df["Cross Mean (RMSE and MAE)"][
+    #     step_df["Removed"] == best_ablation
+    # ].iloc[0]
+
     step_df.to_csv(
         save_path + f"/{step_name}_{estimator_name}_{mode}_results.csv",
+        index=False,
+    )
+    summary_step.to_csv(
+        save_path + f"/{step_name}_summary_{estimator_name}_{mode}_results.csv",
         index=False,
     )
 
