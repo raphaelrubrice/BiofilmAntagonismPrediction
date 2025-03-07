@@ -74,6 +74,7 @@ if __name__ == "__main__":
             # Add it to remove_cols
             remove_cols.append(best_ablation)
             previous = current
+
         current, best_ablation = select_features(
             estimator,
             estimator_name,
@@ -95,6 +96,10 @@ if __name__ == "__main__":
             pow_orders=[2, 3],
         )
         i += 1
+
+    print("*********")
+    print(f"Step Best: {current}, without {best_ablation}")
+    print("*********")
 
     plot_feature_selection(
         "Results/feature_engineering", "RMSE", "Results/feature_engineering"

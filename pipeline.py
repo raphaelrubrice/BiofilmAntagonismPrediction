@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import json, os
+import json, os, gc
 import warnings
 from copy import deepcopy
 
@@ -330,6 +330,16 @@ def select_features(
         )
         results_df["Removed"] = [f"(-) {feature}" for i in range(results_df.shape[0])]
         step_list.append(results_df)
+
+        # Remove no longer needed variables to help memory usage
+        del results_df
+        del results
+        del fe_estimator
+        del remove_cols_copy
+        del num_cols_copy
+        del cat_cols_copy
+
+        gc.collect()
 
     step_df = pd.concat(step_list, axis=0)
     step_df["Cross Mean (RMSE and MAE)"] = np.mean(step_df[["RMSE", "MAE"]], axis=1)

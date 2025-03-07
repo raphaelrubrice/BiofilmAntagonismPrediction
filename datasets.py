@@ -267,10 +267,10 @@ def make_products(df, cols):
 
             # Add one hot columns and remove original one
             cols += [c for c in df_col.columns]
-            cols.pop(col)
+            cols.remove(col)
             # Avoid having the original and the one hot version of the same column
             original_cols_copy = deepcopy(original_cols)
-            original_cols_copy.pop(col)
+            original_cols_copy.remove(col)
             df = pd.concat([df[original_cols_copy], df_col], axis=1)
             print("Updated dataframe and column list.")
 
@@ -399,8 +399,7 @@ def make_feature_engineered_dataset(
 
     # Concatenate original features with newly engineered features
     new_df = pd.concat(
-        [method_df[[col for col in method_df.columns if col not in cols]]]
-        + new_features,
+        [method_df] + new_features,
         axis=1,
     )
 

@@ -74,8 +74,9 @@ if __name__ == "__main__":
         i += 1
 
         print("*********")
-        print("Step Best: {current}, without {best_ablation}")
+        print(f"Step Best: {current}, without {best_ablation}")
         print("*********")
+
         # Explicit cleanup: delete temporary variables and force GPU memory free
         gc.collect()
         try:
