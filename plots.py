@@ -676,6 +676,8 @@ def summary_model_selection(
           One of ["RMSE", "MAE", "std_abs_err", "MAPE", "std_abs_relative_err", "R2"].
       method : str
           The method to filter by (e.g. "avg", "random", or "combinatoric").
+      avg_mode : str
+          Averaging mode, either "weighted" (weighted by n_samples) or "unweighted" (default).
       save_path : str, optional
           If provided, the plot is saved as a PDF.
       show : bool, optional
@@ -686,7 +688,7 @@ def summary_model_selection(
           ho_bacillus, ho_pathogen, ho_interaction
       Overall is computed on the union of these sets.
     """
-    # Validate metric
+    # Validate metric and avg_mode choices.
     assert metric in [
         "RMSE",
         "MAE",
@@ -695,6 +697,9 @@ def summary_model_selection(
         "std_abs_relative_err",
         "R2",
     ], "metric must be one of: RMSE, MAE, std_abs_err, MAPE, std_abs_relative_err, R2"
+    assert avg_mode in ["weighted", "unweighted"], (
+        "avg_mode must be 'weighted' or 'unweighted'"
+    )
 
     direction = "(Lower is better)" if metric != "R2" else "(Higher is better)"
     # Read the CSV file and filter by the selected method.
@@ -707,38 +712,42 @@ def summary_model_selection(
     # Helper function to compute aggregated statistics for a given subset.
     def agg_stats(df, eval_type):
         if avg_mode == "weighted":
-            # Define weights; for example, using the number of samples in each evaluation set
-            # Assuming 'SampleSize' column exists indicating the number of samples
-            df["weights"] = df["SampleSize"]
-            # Compute weighted mean
-            mean_metric = (df[metric] * df["weights"]).sum() / df["weights"].sum()
-            # Compute weighted standard deviation
-            std_metric = np.sqrt(
-                (df["weights"] * (df[metric] - mean_metric) ** 2).sum()
-                / df["weights"].sum()
+            # Compute weighted mean using n_samples as weight, while using the unweighted std and count.
+            grp = (
+                df.groupby("Model")
+                .apply(
+                    lambda g: pd.Series(
+                        {
+                            "mean_metric": np.sum(g[metric] * g["n_samples"])
+                            / np.sum(g["n_samples"]),
+                            "std_metric": g[metric].std(),
+                            "count_metric": g[metric].count(),
+                        }
+                    )
+                )
+                .reset_index()
             )
-            count_metric = df.shape[0]
         else:
-            mean_metric = df[metric].mean()
-            std_metric = df[metric].std()
-            count_metric = df[metric].count()
-
-        ci = (
-            stats.t.ppf(0.975, count_metric - 1) * (std_metric / np.sqrt(count_metric))
-            if count_metric > 1
-            else 0
+            # Compute unweighted mean.
+            grp = (
+                df.groupby("Model")
+                .agg(
+                    mean_metric=(metric, "mean"),
+                    std_metric=(metric, "std"),
+                    count_metric=(metric, "count"),
+                )
+                .reset_index()
+            )
+        grp["ci"] = grp.apply(
+            lambda row: stats.t.ppf(0.975, row["count_metric"] - 1)
+            * row["std_metric"]
+            / np.sqrt(row["count_metric"])
+            if row["count_metric"] > 1
+            else 0,
+            axis=1,
         )
-
-        return pd.DataFrame(
-            {
-                "Model": df["Model"].unique(),
-                "mean_metric": mean_metric,
-                "std_metric": std_metric,
-                "count_metric": count_metric,
-                "ci": ci,
-                "EvalType": eval_type,
-            }
-        )
+        grp["EvalType"] = eval_type
+        return grp
 
     # Compute statistics for each evaluation type.
     overall_df = agg_stats(results[results["Evaluation"].isin(ho_all)], "Overall")
@@ -834,13 +843,13 @@ def summary_model_selection(
 
     # Set title and axis labels.
     ax.set_title(
-        f"Summary of Model Selection Performances ({avg_mode} {metric})\n"
-        f"Method: {method.upper()} | Best Model (Overall): {best_model}",
+        f"Summary Model Selection Performance ({metric})\n"
+        f"Method: {method.upper()} | Averaging: {avg_mode.capitalize()} | Best Model (Overall): {best_model}",
         fontsize=16,
         fontweight="bold",
     )
     ax.set_xlabel("Model", fontsize=14, fontweight="bold")
-    ax.set_ylabel(f"{avg_mode} {metric} {direction}", fontsize=14, fontweight="bold")
+    ax.set_ylabel(f"{metric} {direction}", fontsize=14, fontweight="bold")
 
     # Append custom legend entry for the overall best line.
     handles, labels = ax.get_legend_handles_labels()
@@ -856,7 +865,6 @@ def summary_model_selection(
         if f"overall best: {best_val:.3f}" not in labels:
             handles.append(best_handle)
             labels.append(f"overall best: {best_val:.3f}")
-
     ax.legend(
         handles=handles,
         labels=labels,
@@ -1167,6 +1175,8 @@ def summary_preprocess_selection(
           Une des valeurs parmi ["RMSE", "MAE", "std_abs_err", "MAPE", "std_abs_relative_err", "R2"].
       method : str
           La méthode sur laquelle filtrer (ex: "avg", "random", "combinatoric").
+      avg_mode : str
+          Mode d'agrégation, soit "weighted" (pondéré par n_samples) ou "unweighted" (par défaut).
       save_path : str, optionnel
           Si fourni, le graphique sera sauvegardé au format PDF.
       save_agg_data : bool, optionnel
@@ -1176,7 +1186,7 @@ def summary_preprocess_selection(
       show : bool, optionnel
           Si True, le graphique est affiché.
     """
-    # Validation de la métrique
+    # Validation de la métrique et du mode d'agrégation
     assert metric in [
         "RMSE",
         "MAE",
@@ -1187,7 +1197,10 @@ def summary_preprocess_selection(
     ], (
         "La métrique doit être l'une de: RMSE, MAE, std_abs_err, MAPE, std_abs_relative_err, R2"
     )
-    direction = "(Lower is better)" if metric != "R2" else "(Higher is better)"
+    assert avg_mode in ["weighted", "unweighted"], (
+        "avg_mode doit être 'weighted' ou 'unweighted'"
+    )
+
     # Lecture du CSV et filtrage selon la méthode
     results = pd.read_csv(results_file_path)
     results = results[results["Method"] == method]
@@ -1196,41 +1209,62 @@ def summary_preprocess_selection(
     ho_all = ho_bacillus + ho_pathogen + ho_interaction
 
     # Fonction d'agrégation pour un sous-ensemble d'évaluations.
-    def agg_stats(df, eval_type):
+    def agg_stats(df, eval_type, ci_normalized):
         if avg_mode == "weighted":
-            # Define weights; for example, using the number of samples in each evaluation set
-            # Assuming 'SampleSize' column exists indicating the number of samples
-            df["weights"] = df["SampleSize"]
-            # Compute weighted mean
-            mean_metric = (df[metric] * df["weights"]).sum() / df["weights"].sum()
-            # Compute weighted standard deviation
-            std_metric = np.sqrt(
-                (df["weights"] * (df[metric] - mean_metric) ** 2).sum()
-                / df["weights"].sum()
+            # Calcul de la moyenne pondérée par n_samples, en conservant std et count non pondérés
+            grp = (
+                df.groupby("Model")
+                .apply(
+                    lambda g: pd.Series(
+                        {
+                            "mean_metric": np.sum(g[metric] * g["n_samples"])
+                            / np.sum(g["n_samples"]),
+                            "std_metric": g[metric].std(),
+                            "count_metric": g[metric].count(),
+                        }
+                    )
+                )
+                .reset_index()
             )
-            count_metric = df.shape[0]
+            # Correction de l'erreur : suppression des colonnes dupliquées (ici, "Model")
+            grp = grp.loc[:, ~grp.columns.duplicated()]
         else:
-            mean_metric = df[metric].mean()
-            std_metric = df[metric].std()
-            count_metric = df[metric].count()
+            # Calcul de la moyenne non pondérée.
+            grp = (
+                df.groupby("Model")
+                .agg(
+                    mean_metric=(metric, "mean"),
+                    std_metric=(metric, "std"),
+                    count_metric=(metric, "count"),
+                )
+                .reset_index()
+            )
+        # Calcul de l'intervalle de confiance à 95%.
+        if ci_normalized:
+            grp["ci"] = grp.apply(
+                lambda row: row["mean_metric"]
+                / (
+                    stats.t.ppf(0.975, row["count_metric"] - 1)
+                    * row["std_metric"]
+                    / np.sqrt(row["count_metric"])
+                )
+                if row["count_metric"] > 1
+                else 0,
+                axis=1,
+            )
+        else:
+            grp["ci"] = grp.apply(
+                lambda row: stats.t.ppf(0.975, row["count_metric"] - 1)
+                * row["std_metric"]
+                / np.sqrt(row["count_metric"])
+                if row["count_metric"] > 1
+                else 0,
+                axis=1,
+            )
+        grp["EvalType"] = eval_type
+        return grp
 
-        ci = (
-            stats.t.ppf(0.975, count_metric - 1) * (std_metric / np.sqrt(count_metric))
-            if count_metric > 1
-            else 0
-        )
-
-        return pd.DataFrame(
-            {
-                "Model": df["Model"].unique(),
-                "mean_metric": mean_metric,
-                "std_metric": std_metric,
-                "count_metric": count_metric,
-                "ci": ci,
-                "EvalType": eval_type,
-            }
-        )
-
+    print(results)
     # Calcul des statistiques agrégées pour chaque groupe d'évaluation.
     overall_df = agg_stats(
         results[results["Evaluation"].isin(ho_all)],
@@ -1306,7 +1340,7 @@ def summary_preprocess_selection(
     plt.rcParams.update(
         {"font.size": 8, "font.family": "sans-serif", "font.weight": "bold"}
     )
-    # On choisit une taille adaptée pour une orientation verticale
+    # Taille adaptée pour une orientation verticale
     fig, ax = plt.subplots(figsize=(7, 15))
 
     # Sauvegarde des données agrégées si demandé.
@@ -1314,12 +1348,13 @@ def summary_preprocess_selection(
         if save_path is not None:
             if save_path.endswith(".pdf"):
                 save_agg_path = (
-                    save_path[: save_path.index(".pdf")] + f"_{method}_agg_data.csv"
+                    save_path[: save_path.index(".pdf")]
+                    + f"_{method}_{avg_mode}_agg_data.csv"
                 )
             else:
-                save_agg_path = f"_{method}_agg_data.csv"
+                save_agg_path = f"_{method}_{avg_mode}_agg_data.csv"
         else:
-            save_agg_path = f"_{method}_agg_data.csv"
+            save_agg_path = f"_{method}_{avg_mode}_agg_data.csv"
         agg_data.to_csv(save_agg_path, index=False)
 
     # Pour un plot vertical, les modèles seront sur l'axe y.
@@ -1334,7 +1369,6 @@ def summary_preprocess_selection(
     model_to_y = {model: i for i, model in enumerate(available_models)}
 
     # Pour chaque type d'évaluation, tracer le point et son intervalle de confiance.
-    # Ici, on trace des barres d'erreur horizontales: xerr, avec y positions décalées.
     for eval_type in eval_order:
         sub = agg_data[agg_data["EvalType"] == eval_type]
         # Calcul des positions y décalées
@@ -1362,13 +1396,13 @@ def summary_preprocess_selection(
         )
 
     ax.set_title(
-        f"Summary of preprocessing selection ({avg_mode} {metric} ± 95% CI)\n"
-        f"Method: {method.upper()} | Best preprocessing: {best_model}",
+        f"Summary of preprocessing selection ({metric} ± 95% CI)\n"
+        f"Method: {method.upper()} | Averaging: {avg_mode.capitalize()} | Best preprocessing: {best_model}",
         fontsize=16,
         fontweight="bold",
     )
     ax.set_ylabel("Preprocessing", fontsize=14, fontweight="bold")
-    ax.set_xlabel(f"{avg_mode} {metric} {direction}", fontsize=9, fontweight="bold")
+    ax.set_xlabel(metric, fontsize=9, fontweight="bold")
 
     # Positionnement et étiquetage de l'axe des y
     ax.set_yticks(range(len(available_models)))
