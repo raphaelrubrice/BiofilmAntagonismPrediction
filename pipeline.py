@@ -143,7 +143,11 @@ def evaluate_hold_out(
     shuffle=False,
     mode="normal",
     random_state=62,
+    save=False,
+    save_path="./Results/models/",
 ):
+    if save:
+        os.mkdir(save_path, exist_ok=True)
     X_train, X_test, y_train, y_test = get_train_test_split(
         ho_name,
         method_df,
@@ -192,6 +196,12 @@ def evaluate_hold_out(
     df = pd.DataFrame(results)
 
     if mode != "feature_selection":
+        if save:
+            # Save the model as well as permutation results.
+            model_save_path = os.path.join(
+                save_path, f"{estimator_name}_{ho_name}_model.txt"
+            )
+            estimator.booster_.save_model(model_save_path)
         return df
     else:
         df["Permutation"] = ["No Permutation"]
@@ -241,6 +251,12 @@ def evaluate_hold_out(
             # print(results)
             df = pd.DataFrame(results)
             permutations.append(df)
+        if save:
+            # Save the model as well as permutation results.
+            model_save_path = os.path.join(
+                save_path, f"{estimator_name}_{ho_name}_model.txt"
+            )
+            estimator.booster_.save_model(model_save_path)
         return pd.concat(permutations)
 
 
@@ -256,8 +272,9 @@ def evaluate_method(
     remove_cols=[None],
     shuffle=False,
     random_state=62,
+    save=False,
 ):
-    feature_selection = "permutation" if feature_selection else "classic"
+    feature_selection = "feature_selection" if feature_selection else "classic"
     result_list = []
     for i, ho_name in tqdm(enumerate(ho_sets.keys())):
         ho_df = evaluate_hold_out(
@@ -272,6 +289,7 @@ def evaluate_method(
             mode=feature_selection,
             shuffle=shuffle,
             random_state=random_state,
+            save=save,
         )
         result_list.append(ho_df)
     result_df = pd.concat(result_list, axis=0)
@@ -290,6 +308,7 @@ def evaluate(
     remove_cols=[None],
     shuffle=False,
     random_state=62,
+    save=False,
 ):
     results = []
     for method_name in tqdm(["avg", "random", "combinatoric"]):
@@ -315,6 +334,7 @@ def evaluate(
                 feature_selection=feature_selection,
                 shuffle=shuffle,
                 random_state=random_state,
+                save=save,
             )
             results.append(results_df)
         else:
