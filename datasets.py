@@ -399,7 +399,8 @@ def make_feature_engineered_dataset(
 
     # Concatenate original features with newly engineered features
     new_df = pd.concat(
-        [method_df[col for col in method_df.columns if col not in ["I", "II", "III"]]] + new_features,
+        [method_df[[col for col in method_df.columns if col not in ["I", "II", "III"]]]]
+        + new_features,
         axis=1,
     )
 
