@@ -26,22 +26,16 @@ if __name__ == "__main__":
     estimator = LGBMRegressor(
         random_state=62,
         n_jobs=-1,
+        gpu_use_dp=False,
+        tree_learner="serial",
         device="cuda",
         verbose_eval=False,
         verbose=-1,
     )
     estimator_name = "LGBMRegressor"
-    estimator = create_pipeline(
-        num_cols,
-        cat_cols,
-        imputer="KNNImputer",
-        scaler="RobustScaler",
-        estimator=estimator,
-        model_name=estimator_name,
-    )
 
     best_ablation = None
-    previous = (0.156 + 0.120) / 2  # RMSE and MAE Cross target mean value
+    previous = (0.207 + 0.158) / 2  # RMSE and MAE Cross target mean value
     current = 0
 
     i = 0

@@ -371,14 +371,14 @@ def select_features(
     )  # Removing "(-) " prefix
     print("Best weighted metric:", best_ablation_score)
 
-    # Compute the mean cross mean metric for each ablation experiment
-    summary_step = (
-        step_df[["Cross Mean (RMSE and MAE)", "Removed"]].groupby(by="Removed").mean()
-    )
+    # # Compute the mean cross mean metric for each ablation experiment
+    # summary_step = (
+    #     step_df[["Cross Mean (RMSE and MAE)", "Removed"]].groupby(by="Removed").mean()
+    # )
 
-    # Extract which was the best
-    best_ablation = summary_step["Cross Mean (RMSE and MAE)"].idxmin()
-    best_ablation_score = summary_step["Cross Mean (RMSE and MAE)"].min()
+    # # Extract which was the best
+    # best_ablation = summary_step["Cross Mean (RMSE and MAE)"].idxmin()
+    # best_ablation_score = summary_step["Cross Mean (RMSE and MAE)"].min()
 
     # best_ablation = step_df["Removed"][
     #     step_df["Cross Mean (RMSE and MAE)"]
