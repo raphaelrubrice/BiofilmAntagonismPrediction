@@ -24,7 +24,6 @@ num_cols = [
 
 
 def objective(trial):
-    # 2. Suggest values of the hyperparameters using a trial object.
     param = {
         "objective": "regression",
         "metric": "binary_logloss",
@@ -82,5 +81,5 @@ if __name__ == "__main__":
         print("    {}: {}".format(key, value))
 
     os.mkdir("./Results/optuna_campaign/", exist_ok=True)
-    with open("./Results.optuna_campaign/optuna_study.pkl", "wb") as f:
+    with open("./Results/optuna_campaign/optuna_study.pkl", "wb") as f:
         pkl.dump(study, f)
