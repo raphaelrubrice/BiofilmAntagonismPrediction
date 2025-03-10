@@ -8,8 +8,9 @@ from lightgbm import LGBMRegressor
 from pipeline import create_pipeline, evaluate
 import optuna
 
-
-combinatoric_df = pd.read_csv("Data/Datasets/combinatoric_selected_FE.csv")
+# Feature selection experiment showed that all native features were useful and none of the designed features were.
+# So we can simply use our original dataset
+combinatoric_df = pd.read_csv("Data/Datasets/combinatoric_COI.csv")
 
 df_dict = {"combinatoric": combinatoric_df}
 
