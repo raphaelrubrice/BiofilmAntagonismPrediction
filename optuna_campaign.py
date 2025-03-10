@@ -81,6 +81,6 @@ if __name__ == "__main__":
     for key, value in trial.params.items():
         print("    {}: {}".format(key, value))
 
-    os.mkdir("./Results/optuna_campaign/", exist_ok=True)
+    os.makedirs("./Results/optuna_campaign/", exist_ok=True)
     with open("./Results/optuna_campaign/optuna_study.pkl", "wb") as f:
         pkl.dump(study, f)
