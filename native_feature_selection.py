@@ -8,7 +8,6 @@ from lightgbm import LGBMRegressor
 from pipeline import select_features, create_pipeline
 from plots import plot_feature_selection
 
-
 if __name__ == "__main__":
     combinatoric_df = pd.read_csv("Data/Datasets/combinatoric_COI.csv")
 
@@ -34,12 +33,14 @@ if __name__ == "__main__":
     estimator_name = "LGBMRegressor"
 
     best_ablation = None
-    previous = (0.207 + 0.158) / 2  # Weighted RMSE and MAE Cross target mean value
+    previous = 0.208
     current = 0
 
     i = 0
     candidates = num_cols + cat_cols
-    while previous > current and len(candidates) > 1:
+    while (
+        previous > current and len(candidates) > 1 and best_ablation != "No Permutation"
+    ):
         if i != 0:
             # Remove previously eliminated feature
             candidates.remove(best_ablation)
@@ -87,8 +88,5 @@ if __name__ == "__main__":
             pass  # If cupy isn't used, ignore
 
     plot_feature_selection(
-        "Results/native_feature_selection", "RMSE", "Results/native_feature_selection"
-    )
-    plot_feature_selection(
-        "Results/native_feature_selection", "MAE", "Results/native_feature_selection"
+        "Results/native_feature_selection", "Results/native_feature_selection"
     )

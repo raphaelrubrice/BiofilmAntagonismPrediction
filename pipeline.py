@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import pickle as pkl
 import json, os, gc
 import warnings
 from copy import deepcopy
@@ -20,7 +21,7 @@ from cuml.ensemble import RandomForestRegressor as gpuRandomForestRegressor
 
 from sklearn import set_config
 from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
+from sklearn.compose import ColumnTransformer, make_column_selector
 
 from sklearn.preprocessing import (
     StandardScaler,
@@ -120,9 +121,15 @@ def create_pipeline(
         verbose_feature_names_out=False,
     )
 
+    filter = ColumnTransformer(
+        transformers=[("column_filter", "passthrough", num_cols + cat_cols)],
+        verbose_feature_names_out=False,
+    )
+
     # Complete pipeline: first preprocess, then fit the estimator.
     pipeline = Pipeline(
         [
+            ("column_filter", filter),
             ("preprocessor", preprocessor),
             (model_name, estimator),
         ]
@@ -147,7 +154,7 @@ def evaluate_hold_out(
     save_path="./Results/models/",
 ):
     if save:
-        os.mkdir(save_path, exist_ok=True)
+        os.makedirs(save_path, exist_ok=True)
     X_train, X_test, y_train, y_test = get_train_test_split(
         ho_name,
         method_df,
@@ -201,7 +208,10 @@ def evaluate_hold_out(
             model_save_path = os.path.join(
                 save_path, f"{estimator_name}_{ho_name}_model.txt"
             )
-            estimator.booster_.save_model(model_save_path)
+            estimator[-1].booster_.save_model(model_save_path)
+
+            with open(model_save_path[-4] + "_pipeline.pkl", "wb") as f:
+                pkl.dump(estimator, f)
         return df
     else:
         df["Permutation"] = ["No Permutation"]
@@ -273,6 +283,7 @@ def evaluate_method(
     shuffle=False,
     random_state=62,
     save=False,
+    save_path="./Results/models/",
 ):
     feature_selection = "feature_selection" if feature_selection else "classic"
     result_list = []
@@ -290,6 +301,7 @@ def evaluate_method(
             shuffle=shuffle,
             random_state=random_state,
             save=save,
+            save_path=save_path,
         )
         result_list.append(ho_df)
     result_df = pd.concat(result_list, axis=0)
@@ -309,6 +321,7 @@ def evaluate(
     shuffle=False,
     random_state=62,
     save=False,
+    save_path="./Results/models/",
 ):
     results = []
     for method_name in tqdm(["avg", "random", "combinatoric"]):
@@ -335,6 +348,7 @@ def evaluate(
                 shuffle=shuffle,
                 random_state=random_state,
                 save=save,
+                save_path=save_path,
             )
             results.append(results_df)
         else:
@@ -427,9 +441,6 @@ def select_features(
                 continue
             permuted["diff_RMSE"] = permuted["RMSE"] - baseline_rmse
             permuted["diff_MAE"] = permuted["MAE"] - baseline_mae
-            permuted["cross_mean"] = (
-                permuted["diff_RMSE"] + permuted["diff_MAE"]
-            ) / 2.0
             diff_list.append(permuted)
 
         if len(diff_list) == 0:
@@ -444,11 +455,9 @@ def select_features(
             .apply(
                 lambda g: pd.Series(
                     {
-                        "Weighted Cross Mean (RMSE and MAE)": np.sum(
-                            g["cross_mean"] * g["n_samples"]
-                        )
+                        "Weighted RMSE": np.sum(g["diff_RMSE"] * g["n_samples"])
                         / np.sum(g["n_samples"]),
-                        "Unweighted Mean (RMSE and MAE)": g["cross_mean"].mean(),
+                        "Unweighted RMSE": g["diff_RMSE"].mean(),
                     }
                 )
             )
@@ -456,11 +465,9 @@ def select_features(
         )
 
         # Select the best permutation candidate (the one with the lowest weighted cross mean).
-        best_perm_idx = summary_perm["Weighted Cross Mean (RMSE and MAE)"].idxmin()
+        best_perm_idx = summary_perm["Weighted RMSE"].idxmin()
         best_permutation = summary_perm.loc[best_perm_idx, "Permutation"]
-        best_perm_score = summary_perm.loc[
-            best_perm_idx, "Weighted Cross Mean (RMSE and MAE)"
-        ]
+        best_perm_score = summary_perm.loc[best_perm_idx, "Weighted RMSE"]
 
         print("Best permutation feature (weighted):", best_permutation)
         print("Best weighted metric:", best_perm_score)
@@ -539,28 +546,27 @@ def select_features(
             gc.collect()
 
         step_df = pd.concat(step_list, axis=0)
-        step_df["Cross Mean (RMSE and MAE)"] = np.mean(step_df[["RMSE", "MAE"]], axis=1)
+        # step_df["Cross Mean (RMSE and MAE)"] = np.mean(step_df[["RMSE", "MAE"]], axis=1)
 
         # Compute the weighted cross mean per group using "n_samples" as weights.
         summary_step = (
             step_df.groupby("Removed")
             .apply(
-                lambda g: np.sum(g["Cross Mean (RMSE and MAE)"] * g["n_samples"])
-                / np.sum(g["n_samples"])
+                lambda g: np.sum(g["RMSE"] * g["n_samples"]) / np.sum(g["n_samples"])
             )
-            .reset_index(name="Weighted Cross Mean (RMSE and MAE)")
+            .reset_index(name="Weighted RMSE")
         )
 
         # Compute the unweighted mean.
-        summary_step["Unweighted Mean (RMSE and MAE)"] = (
-            step_df.groupby("Removed")["Cross Mean (RMSE and MAE)"].mean().values
+        summary_step["Unweighted RMSE"] = (
+            step_df.groupby("Removed")["RMSE"].mean().values
         )
 
         # Select the best ablation based on the weighted metric.
         best_ablation = summary_step["Removed"].iloc[
-            summary_step["Weighted Cross Mean (RMSE and MAE)"].idxmin()
+            summary_step["Weighted RMSE"].idxmin()
         ]
-        best_ablation_score = summary_step["Weighted Cross Mean (RMSE and MAE)"].min()
+        best_ablation_score = summary_step["Weighted RMSE"].min()
 
         print(
             "Best ablation feature (weighted):", best_ablation[4:]

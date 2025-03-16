@@ -35,7 +35,7 @@ if __name__ == "__main__":
     estimator_name = "LGBMRegressor"
 
     best_ablation = None
-    previous = (0.207 + 0.158) / 2  # RMSE and MAE Cross target mean value
+    previous = 0.208
     current = 0
 
     i = 0
@@ -56,7 +56,9 @@ if __name__ == "__main__":
 
     df_dict = {"combinatoric": FE_combinatoric_df}
 
-    while previous > current and len(candidates) > 1:
+    while (
+        previous > current and len(candidates) > 1 and best_ablation != "No Permutation"
+    ):
         if i != 0:
             # Remove previously eliminated feature
             candidates.remove(best_ablation)
@@ -94,9 +96,4 @@ if __name__ == "__main__":
     print(f"Step Best: {current}, without {best_ablation}")
     print("*********")
 
-    plot_feature_selection(
-        "Results/feature_engineering", "RMSE", "Results/feature_engineering"
-    )
-    plot_feature_selection(
-        "Results/feature_engineering", "MAE", "Results/feature_engineering"
-    )
+    plot_feature_selection("Results/feature_engineering", "Results/feature_engineering")

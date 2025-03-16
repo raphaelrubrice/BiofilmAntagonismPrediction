@@ -32,11 +32,11 @@ def objective(trial):
         "boosting_type": "gbdt",
         "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 10.0, log=True),
         "lambda_l2": trial.suggest_float("lambda_l2", 1e-8, 10.0, log=True),
-        "num_leaves": trial.suggest_int("num_leaves", 15, 64),
-        "max_depth": trial.suggest_int("max_depth", 1, 15),
+        "num_leaves": trial.suggest_int("num_leaves", 2, 64),
+        "max_depth": trial.suggest_int("max_depth", 2, 15),
         "feature_fraction": trial.suggest_float("feature_fraction", 0.4, 1.0),
         "bagging_fraction": trial.suggest_float("bagging_fraction", 0.4, 1.0),
-        "bagging_freq": trial.suggest_int("bagging_freq", 1, 7),
+        "bagging_freq": trial.suggest_int("bagging_freq", 1, 10),
         "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
         "random_state": 62,
         "gpu_use_dp": False,
@@ -47,6 +47,14 @@ def objective(trial):
 
     estimator = LGBMRegressor(**param)
 
+    estimator = create_pipeline(
+        num_cols,
+        cat_cols,
+        imputer="KNNImputer",
+        scaler="RobustScaler",
+        estimator=estimator,
+        model_name="LGBMRegressor",
+    )
     results = evaluate(
         estimator,
         "LGBMRegressor",
@@ -59,19 +67,20 @@ def objective(trial):
         random_state=62,
         shuffle=False,
     )
-    results["Cross Mean (RMSE and MAE)"] = np.mean(results[["RMSE", "MAE"]], axis=1)
-    results["Weighted Cross Mean (RMSE and MAE)"] = (
-        results["Cross Mean (RMSE and MAE)"]
-        * results["n_samples"]
-        / results["n_samples"].sum()
-    )
 
-    return np.mean(results["Weighted Cross Mean (RMSE and MAE)"])
+    # print(results["Cross Mean (RMSE and MAE)"])
+
+    # Compute terms for the weighted average
+    results["Weighted RMSE"] = (
+        results["RMSE"] * results["n_samples"] / results["n_samples"].sum()
+    )
+    # We now return the sum of the column
+    return np.sum(results["Weighted RMSE"])
 
 
 if __name__ == "__main__":
     study = optuna.create_study(direction="minimize")
-    study.optimize(objective, n_trials=100)
+    study.optimize(objective, n_trials=50)
     print("Best trial:")
     trial = study.best_trial
 

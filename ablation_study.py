@@ -10,7 +10,7 @@ from pipeline import create_pipeline, evaluate
 from plots import plot_feature_selection
 
 if __name__ == "__main__":
-    combinatoric_df = pd.read_csv("Data/Datasets/combinatoric_selected_FE.csv")
+    combinatoric_df = pd.read_csv("Data/Datasets/combinatoric_COI.csv")
 
     df_dict = {"combinatoric": combinatoric_df}
 
@@ -31,14 +31,18 @@ if __name__ == "__main__":
     ]
 
     # Retrieve optuna campaign best params:
-    with open("./Results.optuna_campaign/optuna_study.pkl", "rb") as f:
+    with open("./Results/optuna_campaign/optuna_study.pkl", "rb") as f:
         study = pkl.load(f)
         best_params = study.best_trial.params
 
-    estimator = LGBMRegressor(**best_params)
+    model = LGBMRegressor(**best_params)
 
     os.makedirs("Results/ablation_study/", exist_ok=True)
-    Ablations = [None] + ["all_B", "all_P"] + [col for col in combinatoric_df.columns]
+    Ablations = (
+        [None]
+        + ["all_B", "all_P"]
+        + [col for col in combinatoric_df.columns if col not in remove_cols]
+    )
     for remove in Ablations:
         if remove == "all_B":
             remove_list = [
@@ -56,14 +60,18 @@ if __name__ == "__main__":
         num_cols_copy = list(set(num_cols).difference(set(remove_list)))
         cat_cols_copy = list(set(cat_cols).difference(set(remove_list)))
 
+        print(num_cols_copy)
+        print(cat_cols_copy)
+        print(remove_list)
         estimator = create_pipeline(
             num_cols_copy,
             cat_cols_copy,
             imputer="KNNImputer",
             scaler="RobustScaler",
-            estimator=estimator,
+            estimator=model,
             model_name="LGBMRegressor",
         )
+        save = True if remove is None else False
         results = evaluate(
             estimator,
             "LGBMRegressor",
@@ -73,6 +81,8 @@ if __name__ == "__main__":
             ho_folder_path="Data/Datasets/",
             target=target,
             remove_cols=remove_cols + remove_list,
+            save=save,
+            save_path="./Results/models/",
         )
 
         results.to_csv(f"Results/ablation_study/ho_{remove}_LGBMRegressor_results.csv")
