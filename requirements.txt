@@ -8,4 +8,8 @@ seaborn==0.13.2
 tqdm==4.66.2
 joblib==1.4.2
 numba==0.59.1
+shap==2.0.6
+dice-ml==0.11
+arch==7.2.0
+statsmodels==0.14.2
 

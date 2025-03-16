@@ -14,6 +14,10 @@ dependencies:
   - tqdm=4.66.2
   - joblib=1.4.2
   - pip
+  - shap=2.0.6
+  - dice-ml=0.11
+  - arch=7.2.0
+  - statsmodels=0.14.2
   - pip:
       - numba==0.59.1
 
