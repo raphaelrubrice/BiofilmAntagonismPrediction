@@ -46,7 +46,7 @@ if __name__ == "__main__":
         combinatoric_df,
         "Data/Datasets/combinatoric_FeatureEng.csv",
         cols_prod=candidates,
-        cols_ratio=num_cols,
+        cols_diff=num_cols,
         cols_pow=num_cols,
         pow_orders=[2, 3],
         eps=1e-4,

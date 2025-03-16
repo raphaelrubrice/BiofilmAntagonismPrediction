@@ -889,11 +889,11 @@ def plot_native_feature_selection(
     for permutation in pd.unique(results["Permutation"]):
         if permutation != "No Permutation":
             mask = results["Permutation"] == permutation
-            avg = results[mask]["cross_mean"].mean()
+            avg = results[mask]["diff_RMSE"].mean()
 
             if avg != 0:
                 low, up = compute_CI(
-                    results[mask]["cross_mean"],
+                    results[mask]["diff_RMSE"],
                     num_iter=5000,
                     confidence=95,
                     seed=62,
@@ -1007,11 +1007,11 @@ def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=F
             mask = results["Permutation"] == permutation
             rmse = results[mask]["RMSE"].mean()
             mae = results[mask]["MAE"].mean()
-            avg = results[mask]["cross_mean"].mean()
+            avg = results[mask]["diff_RMSE"].mean()
 
             if avg != 0:
                 low, up = compute_CI(
-                    results[mask]["cross_mean"],
+                    results[mask]["diff_RMSE"],
                     num_iter=5000,
                     confidence=95,
                     seed=62,
@@ -2306,7 +2306,7 @@ if __name__ == "__main__":
             "Running summary_preprocess_selection for MAE and saving to ./Plots/preprocess_selection_MAE.pdf"
         )
         summary_preprocess_selection(
-            "./Results/model_selection/ho_all_results.csv",
+            "./Results/preprocess_selection/ho_all_results.csv",
             metric="MAE",
             method="combinatoric",
             avg_mode="weighted",
@@ -2318,7 +2318,7 @@ if __name__ == "__main__":
             "Running summary_preprocess_selection for RMSE and saving to ./Plots/preprocess_selection_MAE.pdf"
         )
         summary_preprocess_selection(
-            "./Results/model_selection/ho_all_results.csv",
+            "./Results/preprocess_selection/ho_all_results.csv",
             metric="RMSE",
             method="combinatoric",
             avg_mode="weighted",

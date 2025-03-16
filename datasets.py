@@ -280,16 +280,16 @@ def make_products(df, cols):
     return new_features
 
 
-def make_ratios(df, cols, eps=1e-4):
+def make_diff(df, cols):
     """
-    For each unique pair of columns in 'cols', compute the ratio col1 / (col2 + eps).
-    Returns a DataFrame with new columns named 'ratio_<col1>_<col2>'.
+    For each unique pair of columns in 'cols', compute the difference col1 - col2.
+    Returns a DataFrame with new columns named 'diff_<col1>_<col2>'.
     Only one quotient is computed per pair.
     """
     new_features = pd.DataFrame(index=df.index)
     for col1, col2 in itertools.combinations(cols, 2):
-        new_col = f"ratio_{col1}_{col2}"
-        new_features[new_col] = df[col1] / (df[col2] + eps)
+        new_col = f"diff_{col1}_{col2}"
+        new_features[new_col] = df[col1] - df[col2]
     return new_features
 
 
@@ -353,7 +353,7 @@ def make_feature_engineered_dataset(
     method_df,
     save_path,
     cols_prod=[None],
-    cols_ratio=[None],
+    cols_diff=[None],
     cols_pow=[None],
     pow_orders=[2, 3],
     eps=1e-4,
@@ -380,8 +380,8 @@ def make_feature_engineered_dataset(
         new_features.append(prod_df)
 
     # Ratio features
-    if cols_ratio != [None]:
-        ratio_df = make_ratios(method_df[cols], cols_ratio, eps)
+    if cols_diff != [None]:
+        ratio_df = make_diff(method_df[cols], cols_diff, eps)
         new_features.append(ratio_df)
 
     # Power features
