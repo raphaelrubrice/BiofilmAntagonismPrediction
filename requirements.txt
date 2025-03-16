@@ -12,4 +12,5 @@ shap==0.45.1
 dice-ml==0.11
 arch==7.2.0
 statsmodels==0.14.2
+optuna==4.0.0
 
