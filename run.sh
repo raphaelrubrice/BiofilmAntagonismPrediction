@@ -1,68 +1,105 @@
 #!/bin/bash
 
-# Redirect all output (stdout and stderr) to a log file
-LOG_FILE="run.log"
-
-# Function to run a command and log it
-run_and_log() {
-  echo "Running: $1" | tee -a "$LOG_FILE"
-  "$1" 2>&1 | tee -a "$LOG_FILE"
-  if [ $? -ne 0 ]; then
-    echo "Error occurred during: $1" | tee -a "$LOG_FILE"
-    exit 1  # Exit script on error
-  fi
-  echo "Finished: $1" | tee -a "$LOG_FILE"
-}
-
 # Create Hold out sets
-run_and_log "python datasets.py --methods avg random combinatoric --mode 1"
+echo "Starting: python datasets.py --methods avg random combinatoric --mode 1"
+python datasets.py --methods avg random combinatoric --mode 1
+echo "Finished: python datasets.py --methods avg random combinatoric --mode 1"
 
 # Run model selection experiment on Hold out sets
-run_and_log "python model_selection.py --run 1 --concat_results 1 --mode ho"
+echo "Starting: python model_selection.py --run 1 --concat_results 1 --mode ho"
+python model_selection.py --run 1 --concat_results 1 --mode ho
+echo "Finished: python model_selection.py --run 1 --concat_results 1 --mode ho"
 
 # Generate plots
-run_and_log "python analysis_plots.py \"plot_model_selection\""
-run_and_log "python analysis_plots.py \"summary_model_selection\""
+echo "Starting: python analysis_plots.py \"plot_model_selection\""
+python analysis_plots.py "plot_model_selection"
+echo "Finished: python analysis_plots.py \"plot_model_selection\""
+
+echo "Starting: python analysis_plots.py \"summary_model_selection\""
+python analysis_plots.py "summary_model_selection"
+echo "Finished: python analysis_plots.py \"summary_model_selection\""
 
 # Run preprocessing selection
-run_and_log "python preprocess_selection.py --run 1 --concat_results 1 --mode ho"
+echo "Starting: python preprocess_selection.py --run 1 --concat_results 1 --mode ho"
+python preprocess_selection.py --run 1 --concat_results 1 --mode ho
+echo "Finished: python preprocess_selection.py --run 1 --concat_results 1 --mode ho"
 
 # Generate plots
-run_and_log "python analysis_plots.py \"summary_preprocess_selection\""
+echo "Starting: python analysis_plots.py \"summary_preprocess_selection\""
+python analysis_plots.py "summary_preprocess_selection"
+echo "Finished: python analysis_plots.py \"summary_preprocess_selection\""
 
 # Native Feature Selection
-run_and_log "python native_feature_selection.py"
+echo "Starting: python native_feature_selection.py"
+python native_feature_selection.py
+echo "Finished: python native_feature_selection.py"
 
 # Generate plots
-run_and_log "python analysis_plots.py \"plot_native_feature_selection\""
+echo "Starting: python analysis_plots.py \"plot_native_feature_selection\""
+python analysis_plots.py "plot_native_feature_selection"
+echo "Finished: python analysis_plots.py \"plot_native_feature_selection\""
 
 # Feature Engineering and selection
-run_and_log "python feature_engineering.py"
+echo "Starting: python feature_engineering.py"
+python feature_engineering.py
+echo "Finished: python feature_engineering.py"
 
 # Generate plots
-run_and_log "python analysis_plots.py \"plot_feature_engineering\""
+echo "Starting: python analysis_plots.py \"plot_feature_engineering\""
+python analysis_plots.py "plot_feature_engineering"
+echo "Finished: python analysis_plots.py \"plot_feature_engineering\""
 
 # Hyperparameter optimization campaign
-run_and_log "python optuna_campaign.py"
+echo "Starting: python optuna_campaign.py"
+python optuna_campaign.py
+echo "Finished: python optuna_campaign.py"
 
 # Generate plots
-run_and_log "python analysis_plots.py \"plot_optuna_study\""
-run_and_log "python analysis_plots.py \"plot_feature_importance_heatmap\""
+echo "Starting: python analysis_plots.py \"plot_optuna_study\""
+python analysis_plots.py "plot_optuna_study"
+echo "Finished: python analysis_plots.py \"plot_optuna_study\""
+
+echo "Starting: python analysis_plots.py \"plot_feature_importance_heatmap\""
+python analysis_plots.py "plot_feature_importance_heatmap"
+echo "Finished: python analysis_plots.py \"plot_feature_importance_heatmap\""
 
 # Ablation study
-run_and_log "python ablation_study.py"
+echo "Starting: python ablation_study.py"
+python ablation_study.py
+echo "Finished: python ablation_study.py"
 
 # Generate plots
-run_and_log "python analysis_plots.py \"plot_ablation_study\""
-run_and_log "python analysis_plots.py \"plot_err_distrib\""
-run_and_log "python analysis_plots.py \"plot_err_by_org\""
+echo "Starting: python analysis_plots.py \"plot_ablation_study\""
+python analysis_plots.py "plot_ablation_study"
+echo "Finished: python analysis_plots.py \"plot_ablation_study\""
+
+echo "Starting: python analysis_plots.py \"plot_err_distrib\""
+python analysis_plots.py "plot_err_distrib"
+echo "Finished: python analysis_plots.py \"plot_err_distrib\""
+
+echo "Starting: python analysis_plots.py \"plot_err_by_org\""
+python analysis_plots.py "plot_err_by_org"
+echo "Finished: python analysis_plots.py \"plot_err_by_org\""
 
 # Generate other plots
-run_and_log "python analysis_plots.py \"plot_global_SHAP\""
-run_and_log "python analysis_plots.py \"plot_local_SHAP\""
-# run_and_log "python analysis_plots.py \"plot_global_DiCE\""
-# run_and_log "python analysis_plots.py \"plot_local_DiCE\""
+echo "Starting: python analysis_plots.py \"plot_global_SHAP\""
+python analysis_plots.py "plot_global_SHAP"
+echo "Finished: python analysis_plots.py \"plot_global_SHAP\""
 
-run_and_log "python analysis_plots.py \"show_perf_skewedness\""
+echo "Starting: python analysis_plots.py \"plot_local_SHAP\""
+python analysis_plots.py "plot_local_SHAP"
+echo "Finished: python analysis_plots.py \"plot_local_SHAP\""
 
-echo "Script execution completed. Check $LOG_FILE for details."
+echo "Starting: python analysis_plots.py \"plot_global_DiCE\""
+python analysis_plots.py "plot_global_DiCE"
+echo "Finished: python analysis_plots.py \"plot_global_DiCE\""
+
+echo "Starting: python analysis_plots.py \"plot_local_DiCE\""
+python analysis_plots.py "plot_local_DiCE"
+echo "Finished: python analysis_plots.py \"plot_local_DiCE\""
+
+echo "Starting: python analysis_plots.py \"show_perf_skewedness\""
+python analysis_plots.py "show_perf_skewedness"
+echo "Finished: python analysis_plots.py \"show_perf_skewedness\""
+
+echo "Script execution completed."
