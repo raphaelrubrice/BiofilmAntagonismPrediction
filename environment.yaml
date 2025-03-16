@@ -15,7 +15,7 @@ dependencies:
   - joblib=1.4.2
   - pip
   - shap=0.45.1
-  - dice-ml=0.11
+  - dice-ml
   - arch=7.2.0
   - statsmodels=0.14.2
   - pip:
