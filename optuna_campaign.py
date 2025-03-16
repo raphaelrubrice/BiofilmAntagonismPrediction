@@ -27,7 +27,6 @@ num_cols = [
 def objective(trial):
     param = {
         "objective": "regression",
-        "metric": "binary_logloss",
         "verbosity": -1,
         "boosting_type": "gbdt",
         "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 10.0, log=True),
