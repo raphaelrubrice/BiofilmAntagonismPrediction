@@ -49,7 +49,6 @@ if __name__ == "__main__":
         cols_diff=num_cols,
         cols_pow=num_cols,
         pow_orders=[2, 3],
-        eps=1e-4,
         target=target,
         remove_cols=remove_cols,
     )
