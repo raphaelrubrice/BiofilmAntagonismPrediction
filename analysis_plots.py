@@ -1584,7 +1584,7 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
             "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
         )
         X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-        pipeline[:-1].fit(X_train.sample(1000))
+        pipeline[:-1].fit(X_train)
         X_test = pipeline[:-1].transform(X_test)
         yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
         y_true = np.array(y_true).reshape(-1, 1)
@@ -1872,7 +1872,7 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
                 "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
             )
             X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-            pipeline[:-1].fit(X_train.sample(1000))
+            pipeline[:-1].fit(X_train)
             X_test = pipeline[:-1].transform(X_test)
 
             yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
@@ -2049,7 +2049,7 @@ def plot_global_SHAP(
     X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
 
     # Fit Preprocessing steps
-    pipeline[:-1].fit(X_train.sample(1000))
+    pipeline[:-1].fit(X_train)
     X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
 
     explainer = shap.TreeExplainer(pipeline[-1])
@@ -2076,7 +2076,7 @@ def plot_local_SHAP(
     X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
 
     # Fit Preprocessing steps
-    pipeline[:-1].fit(X_train.sample(1000))
+    pipeline[:-1].fit(X_train)
     X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
 
     yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
@@ -2137,7 +2137,7 @@ def prepare_dice(path_model_folder=None, path_df=None, ho_name="1234_x_S.en"):
     X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
 
     X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-    pipeline[:-1].fit(X_train.sample(1000))
+    pipeline[:-1].fit(X_train)
     X_test_transf = pipeline[:-1].transform(X_test)
 
     # Make sure we convert categorical features to suitable format for DiCE
