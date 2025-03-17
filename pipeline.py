@@ -221,8 +221,8 @@ def evaluate_hold_out(
             permuted_X_test = X_test.copy()
 
             # Apply permutation on the feature
-            permuted_X_test[feature] = permuted_X_test[feature].sample(
-                X_test.shape[0], random_state=random_state
+            permuted_X_test[feature] = permuted_X_test[feature] = np.random.permutation(
+                permuted_X_test[feature].values
             )
 
             yhat = np.ravel(estimator.predict(permuted_X_test))
