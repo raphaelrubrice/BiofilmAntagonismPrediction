@@ -356,7 +356,6 @@ def make_feature_engineered_dataset(
     cols_diff=[None],
     cols_pow=[None],
     pow_orders=[2, 3],
-    eps=1e-4,
     target=["Score"],
     remove_cols=["Unnamed: 0"],
 ):
@@ -381,7 +380,7 @@ def make_feature_engineered_dataset(
 
     # Ratio features
     if cols_diff != [None]:
-        ratio_df = make_diff(method_df[cols], cols_diff, eps)
+        ratio_df = make_diff(method_df[cols], cols_diff)
         new_features.append(ratio_df)
 
     # Power features

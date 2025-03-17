@@ -4,7 +4,7 @@ import numpy as np
 
 from pipeline import create_pipeline, select_features
 from datasets import make_feature_engineered_dataset
-from plots import plot_feature_selection
+# from plots import plot_feature_selection
 
 from lightgbm import LGBMRegressor
 
@@ -96,4 +96,4 @@ if __name__ == "__main__":
     print(f"Step Best: {current}, without {best_ablation}")
     print("*********")
 
-    plot_feature_selection("Results/feature_engineering", "Results/feature_engineering")
+    # plot_feature_selection("Results/feature_engineering", "Results/feature_engineering")

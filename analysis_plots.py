@@ -1138,13 +1138,13 @@ def plot_optuna_study(path_study=None, save_path=None, show=False):
     plot_rank(
         optuna_study,
         params=[
-            "num_leaves",
+            "n_estimatorsnum_leaves",
             "bagging_fraction",
             "feature_fraction",
             "min_child_samples",
         ],
     )
-    plt.gcf().set_figheight(18)
+    plt.gcf().set_figheight(20)
     plt.gcf().set_figwidth(15)
     plt.suptitle("Optuna Parameter Rankings", fontsize=14, fontweight="bold")
 
@@ -1326,25 +1326,25 @@ def plot_ablation_study(
         func = weighted_stat_func if weighted else np.mean
         # RMSE CI
         low_r, up_r = compute_CI(
-            df["RMSE"],
+            df[addon + "RMSE"],
             num_iter=5000,
             confidence=95,
             seed=62,
             stat_func=func,
             mode=ci_mode,
         )
-        avg_r = func(df["RMSE"])
+        avg_r = func(df[addon + "RMSE"])
         low_r, up_r = abs(avg_r - low_r), abs(up_r - avg_r)
         # MAE CI
         low_m, up_m = compute_CI(
-            df["MAE"],
+            df[addon + "MAE"],
             num_iter=5000,
             confidence=95,
             seed=62,
             stat_func=func,
             mode=ci_mode,
         )
-        avg_m = func(df["MAE"])
+        avg_m = func(df[addon + "MAE"])
         low_m, up_m = abs(avg_m - low_m), abs(up_m - avg_m)
 
         plot_df["RMSE_CI95_low"].append(low_r)
@@ -1365,7 +1365,7 @@ def plot_ablation_study(
             by=addon + metric, ascending=False
         )
         df_plot = pd.concat([baseline_df, others], axis=0).reset_index(drop=True)
-
+        print(df_plot)
         # Get the baseline metric value (assumed to be the first row)
         baseline_value = df_plot.iloc[0][addon + metric]
 
@@ -1411,13 +1411,13 @@ def plot_ablation_study(
         )
 
         # Add error bars with confidence intervals
-        error_lower = df_plot[f"{metric}_CI95_low"].values
-        error_upper = df_plot[f"{metric}_CI95_up"].values
-        error_bars = np.vstack([error_lower, error_upper])
+        intervals = np.array(
+            [df_plot[f"{metric}_CI95_low"], df_plot[f"{metric}_CI95_up"]]
+        )
         ax.errorbar(
             x=df_plot[addon + metric],
             y=np.arange(len(df_plot)),
-            xerr=error_bars,
+            xerr=intervals,
             capsize=5,
             fmt="o",
             ecolor="black",
@@ -1430,9 +1430,11 @@ def plot_ablation_study(
 
         # Set titles and labels
         ax.set_title(
-            f"Ablation Study: Impact on {metric}", fontsize=14, fontweight="bold"
+            f"Ablation Study: Impact on {addon + metric}",
+            fontsize=14,
+            fontweight="bold",
         )
-        ax.set_xlabel(f"{metric} Score", fontsize=12, fontweight="bold")
+        ax.set_xlabel(f"{addon + metric} Score", fontsize=12, fontweight="bold")
         ax.set_ylabel("Ablated Feature", fontsize=12, fontweight="bold")
         plt.tight_layout()
         if save_path is not None:
@@ -1554,7 +1556,7 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
             "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
         )
         X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-        pipeline[:-1].fit(X_train.sample(1000))
+        pipeline[:-1].fit(X_train)
         X_test = pipeline[:-1].transform(X_test)
         yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
         y_true = np.array(y_true).reshape(-1, 1)
@@ -1808,7 +1810,7 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
                 "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
             )
             X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-            pipeline[:-1].fit(X_train.sample(1000))
+            pipeline[:-1].fit(X_train)
             X_test = pipeline[:-1].transform(X_test)
 
             yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
@@ -1926,7 +1928,7 @@ def plot_global_SHAP(
     X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
 
     # Fit Preprocessing steps
-    pipeline[:-1].fit(X_train.sample(1000))
+    pipeline[:-1].fit(X_train)
     X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
 
     explainer = shap.TreeExplainer(pipeline[-1])
@@ -1953,7 +1955,7 @@ def plot_local_SHAP(
     X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
 
     # Fit Preprocessing steps
-    pipeline[:-1].fit(X_train.sample(1000))
+    pipeline[:-1].fit(X_train)
     X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
 
     yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
@@ -2014,7 +2016,7 @@ def prepare_dice(path_model_folder=None, path_df=None, ho_name="1234_x_S.en"):
     X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
 
     X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-    pipeline[:-1].fit(X_train.sample(1000))
+    pipeline[:-1].fit(X_train)
     X_test_transf = pipeline[:-1].transform(X_test)
 
     # Make sure we convert categorical features to suitable format for DiCE
@@ -2145,7 +2147,6 @@ def plot_local_DiCE(
             total_CFs=5,
             desired_range=desired_range,
             initialization="random",
-            random_seed=6262,
         )
 
         # Compute local feature importances

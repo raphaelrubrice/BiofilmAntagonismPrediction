@@ -6,7 +6,7 @@ import cupy as cp
 
 from lightgbm import LGBMRegressor
 from pipeline import select_features, create_pipeline
-from plots import plot_feature_selection
+# from plots import plot_feature_selection
 
 if __name__ == "__main__":
     combinatoric_df = pd.read_csv("Data/Datasets/combinatoric_COI.csv")
@@ -87,6 +87,6 @@ if __name__ == "__main__":
         except ImportError:
             pass  # If cupy isn't used, ignore
 
-    plot_feature_selection(
-        "Results/native_feature_selection", "Results/native_feature_selection"
-    )
+    # plot_feature_selection(
+    #     "Results/native_feature_selection", "Results/native_feature_selection"
+    # )
