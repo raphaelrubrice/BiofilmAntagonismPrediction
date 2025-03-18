@@ -1077,8 +1077,8 @@ def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=F
     plt.tight_layout()
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += "_top.pdf"
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+            save_path_bis = save_path + "_top.pdf"
+            plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
@@ -1101,8 +1101,8 @@ def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=F
     plt.tight_layout()
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += "_heat.pdf"
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+            save_path_bis = save_path + "_heat.pdf"
+        plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
@@ -1138,6 +1138,12 @@ def plot_optuna_study(path_study=None, save_path=None, show=False):
     plt.gca().set_title("Optuna Parameter Importances", fontsize=14, fontweight="bold")
     plt.gca().set_ylabel("Hyperparameter", fontsize=11, fontweight="bold")
     plt.gca().set_xlabel("Hyperparameter Importance", fontsize=11, fontweight="bold")
+    if save_path is not None:
+        if not save_path.endswith(".pdf"):
+            save_path_bis = save_path + "_importances.pdf"
+            plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
+    if show:
+        plt.show()
 
     # Plot parameter ranking
     plot_rank(
@@ -1156,8 +1162,8 @@ def plot_optuna_study(path_study=None, save_path=None, show=False):
 
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += ".pdf"
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+            save_path_bis = save_path + "_rank.pdf"
+            plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
@@ -1471,8 +1477,8 @@ def plot_ablation_study(
         plt.tight_layout()
         if save_path is not None:
             if not save_path.endswith(".pdf"):
-                save_path += ".pdf"
-            plt.savefig(save_path, format="pdf", bbox_inches="tight")
+                save_path_bis = save_path + f"_{metric}.pdf"
+                plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
         if show:
             plt.show()
 
@@ -1670,8 +1676,8 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     plt.tight_layout()
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += ".pdf"
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+            save_path_bis = save_path + "_distrib.pdf"
+            plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
@@ -1814,8 +1820,8 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     plt.tight_layout()
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += ".pdf"
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+            save_path_bis = save_path + "_true_scores.pdf"
+            plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
@@ -1914,7 +1920,12 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
     ax[1].tick_params(axis="x", rotation=45)
 
     plt.tight_layout()
-    plt.show()
+    if save_path is not None:
+        if not save_path.endswith(".pdf"):
+            save_path_bis = save_path + "_orgs.pdf"
+            plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
+    if show:
+        plt.show()
 
     # Interaction Heatmap
     plt.figure(figsize=(6, 20))
@@ -1932,8 +1943,8 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
     plt.title("Interaction MAE Heatmap", fontsize=14, fontweight="bold")
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += ".pdf"
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+            save_path_bis = save_path + "_int.pdf"
+            plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
@@ -1968,7 +1979,7 @@ def plot_global_SHAP(
     shap.summary_plot(shap_values, X_test)
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += ".pdf"
+            save_path += f"_{ho_name}.pdf"
         plt.savefig(save_path, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
@@ -2000,7 +2011,7 @@ def plot_local_SHAP(
     shap.plots.waterfall(shap_values[0])
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += ".pdf"
+            save_path += f"_{ho_name}_{mode}.pdf"
         plt.savefig(save_path, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
@@ -2111,7 +2122,7 @@ def plot_global_DiCE(
     plt.tight_layout()
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += ".pdf"
+            save_path += f"_{ho_name}.pdf"
         plt.savefig(save_path, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
@@ -2210,7 +2221,12 @@ def plot_local_DiCE(
         ax.set_ylabel("Features", fontsize=14, fontweight="bold")
         plt.yticks(rotation=0)
         plt.tight_layout()
-        plt.show()
+        if save_path is not None:
+            if not save_path.endswith(".pdf"):
+                save_path += f"_{ho_name}_{mode}.pdf"
+            plt.savefig(save_path, format="pdf", bbox_inches="tight")
+        if show:
+            plt.show()
 
         return cf, local_imp
 
@@ -2248,7 +2264,7 @@ def plot_local_DiCE(
         plt.tight_layout()
         if save_path is not None:
             if not save_path.endswith(".pdf"):
-                save_path += ".pdf"
+                save_path += f"_{ho_name}_{mode}.pdf"
             plt.savefig(save_path, format="pdf", bbox_inches="tight")
         if show:
             plt.show()
@@ -2375,14 +2391,14 @@ if __name__ == "__main__":
         plot_feature_engineering(
             "./Results/feature_engineering/step_1_LGBMRegressor_controled_homology_permutation_details.csv",
             ci_mode="bca",
-            save_path="./Plots/feature_engineering.pdf",
+            save_path="./Plots/feature_engineering",
             show=False,
         )
     elif plot_type == "plot_optuna_study":
         print("Running plot_optuna_study and saving to ./Plots/optuna_study.pdf")
         plot_optuna_study(
             "./Results/optuna_campaign/optuna_study.pkl",
-            save_path="./Plots/optuna_study.pdf",
+            save_path="./Plots/optuna_study",
             show=False,
         )
     elif plot_type == "plot_feature_importance_heatmap":
@@ -2398,28 +2414,28 @@ if __name__ == "__main__":
         print("Running plot_ablation_study and saving to ./Plots/ablation_study.pdf")
         plot_ablation_study(
             "./Results/ablation_study/",
-            save_path="./Plots/ablation_study.pdf",
+            save_path="./Plots/ablation_study",
             show=False,
         )
     elif plot_type == "plot_err_distrib":
         print("Running plot_err_distrib and saving to ./Plots/distrib_err.pdf")
         plot_err_distrib(
             "./Results/ablation_study/ho_None_LGBMRegressor_results.csv",
-            save_path="./Plots/distrib_err.pdf",
+            save_path="./Plots/distrib_err",
             show=False,
         )
     elif plot_type == "plot_err_by_org":
         print("Running plot_err_by_org and saving to ./Plots/err_by_org.pdf")
         plot_err_by_org(
             "./Results/ablation_study/ho_None_LGBMRegressor_results.csv",
-            save_path="./Plots/err_by_org.pdf",
+            save_path="./Plots/err_by_org",
             show=False,
         )
 
     elif plot_type == "plot_global_SHAP":
         print("Running plot_global_SHAP and saving to ./Plots/global_SHAP.pdf")
         plot_global_SHAP(
-            ho_name="1234_x_S.en", save_path="./Plots/global_SHAP.pdf", show=False
+            ho_name="1234_x_S.en", save_path="./Plots/global_SHAP", show=False
         )
     elif plot_type == "plot_local_SHAP":
         print(
@@ -2428,7 +2444,7 @@ if __name__ == "__main__":
         plot_local_SHAP(
             ho_name="1234_x_S.en",
             mode="worst",
-            save_path="./Plots/local_SHAP_worst.pdf",
+            save_path="./Plots/local_SHAP",
             show=False,
         )
         print(
@@ -2437,13 +2453,13 @@ if __name__ == "__main__":
         plot_local_SHAP(
             ho_name="1234_x_S.en",
             mode="best",
-            save_path="./Plots/local_SHAP_best.pdf",
+            save_path="./Plots/local_SHAP",
             show=False,
         )
     elif plot_type == "plot_global_DiCE":
         print("Running plot_global_DiCE and saving to ./Plots/global_DiCE.pdf")
         plot_global_DiCE(
-            ho_name="1234_x_S.en", save_path="./Plots/global_DiCE.pdf", show=False
+            ho_name="1234_x_S.en", save_path="./Plots/global_DiCE", show=False
         )
     elif plot_type == "plot_local_DiCE":
         print(
@@ -2452,7 +2468,7 @@ if __name__ == "__main__":
         plot_local_DiCE(
             ho_name="1234_x_S.en",
             mode="worst",
-            save_path="./Plots/local_DiCE_worst.pdf",
+            save_path="./Plots/local_DiCE",
             show=False,
         )
         print(
@@ -2461,6 +2477,6 @@ if __name__ == "__main__":
         plot_local_DiCE(
             ho_name="1234_x_S.en",
             mode="best",
-            save_path="./Plots/local_DiCE_best.pdf",
+            save_path="./Plots/local_DiCE",
             show=False,
         )
