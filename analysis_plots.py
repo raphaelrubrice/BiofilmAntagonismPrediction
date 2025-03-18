@@ -1075,7 +1075,12 @@ def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=F
 
     # Adjust layout and show plot
     plt.tight_layout()
-    plt.show()
+    if save_path is not None:
+        if not save_path.endswith(".pdf"):
+            save_path += "_top.pdf"
+        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+    if show:
+        plt.show()
 
     # Set feature names as index for heatmap
     plot_df.set_index("Feature", inplace=True)
@@ -1096,7 +1101,7 @@ def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=F
     plt.tight_layout()
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += ".pdf"
+            save_path += "_heat.pdf"
         plt.savefig(save_path, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
@@ -1138,7 +1143,8 @@ def plot_optuna_study(path_study=None, save_path=None, show=False):
     plot_rank(
         optuna_study,
         params=[
-            "n_estimatorsnum_leaves",
+            "n_estimators",
+            "num_leaves",
             "bagging_fraction",
             "feature_fraction",
             "min_child_samples",
@@ -1220,7 +1226,7 @@ def plot_feature_importance_heatmap(path_model_folder=None, save_path=None, show
         linewidths=0.5,
         linecolor="gray",
         # annot=True,  # Show values in heatmap
-        fmt=".3f",
+        fmt=".2f",
     )
 
     # Titles and labels
@@ -1544,21 +1550,19 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     """
     Produces two plots:
 
-    1. A vertical bar plot showing the average percentage of predictions that fall under various
-       absolute error thresholds, with error bars. The bars follow a green colormap gradient
-       ("< 0.01" is darkest green, progressing to brighter green for "< 0.2"), while the ">= 0.2"
-       bar is red. Labels (in black) are placed above each bar.
+    1. A horizontal bar plot showing the average percentage of predictions
+       that fall under various absolute error thresholds, with error bars.
+       - The bars follow a green colormap gradient: "< 0.01" is the darkest green,
+         progressing to brighter green for "< 0.2". The ">= 0.2" bar is shown in red.
 
-    2. A vertical bar plot showing the average absolute error by predicted exclusion score range,
-       with error bars. The bar colors are determined continuously based on the True Scores Proportion,
-       with an accompanying colorbar. A red horizontal reference line is drawn at 0.2 and labeled, and
-       each bar is labeled at its center in either black or white (depending on the bar brightness).
+    2. A vertical bar plot showing the average absolute error by predicted exclusion
+       score range, with error bars. The bar colors are set using a continuous colormap
+       (with an accompanying colorbar representing the True Scores Proportion).
+       A red horizontal reference line is drawn at 0.2 and labeled accordingly.
 
     Parameters:
     - path_df (str, optional): Path to CSV file containing ablation study results.
     - ci_mode (str): Confidence interval calculation method.
-    - save_path (str, optional): If provided, saves the figure as a PDF.
-    - show (bool): If True, displays the plots.
     """
     # ---------------------- Part 1: Distribution of Errors ---------------------- #
     if path_df is None:
@@ -1600,7 +1604,7 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
         plot_df[">= 0.2"].append(np.mean(abs_err >= 0.2))
     plot_df = pd.DataFrame(plot_df)
 
-    # Aggregate across folds: compute average and CI for each threshold.
+    # Aggregate across folds: compute average and confidence intervals for each threshold.
     final_plot_df = {
         "Absolute Error": [],
         "Percentage Of Predictions": [],
@@ -1624,7 +1628,9 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
         final_plot_df["CI95_up"].append(up)
     final_plot_df = pd.DataFrame(final_plot_df)
 
-    # Custom colors: use 5 shades from dark to light greens for thresholds (except ">= 0.2" is red)
+    # Create custom colors:
+    # For thresholds other than ">= 0.2", use a green gradient.
+    # We use 5 shades from dark to light for "< 0.01" to "< 0.2".
     greens = sns.color_palette("Greens_r", 5)  # dark -> light
     color_mapping = {
         "< 0.01": greens[0],
@@ -1636,18 +1642,17 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     }
     colors_plot1 = [color_mapping[val] for val in final_plot_df["Absolute Error"]]
 
+    # Set Seaborn theme
     sns.set_theme(style="whitegrid", context="talk")
 
-    # Plot 1: Vertical bar plot for error distribution.
+    # Plot 1: Horizontal bar plot for error distribution.
     fig, ax = plt.subplots(figsize=(10, 6))
-    # Draw vertical bars (categories on x, height = percentage)
-    barplot1 = sns.barplot(
+    sns.barplot(
         data=final_plot_df,
         x="Absolute Error",
         y="Percentage Of Predictions",
         ax=ax,
         palette=colors_plot1,
-        edgecolor="black",
     )
     intervals = np.array([final_plot_df["CI95_low"], final_plot_df["CI95_up"]])
     ax.errorbar(
@@ -1655,37 +1660,22 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
         y=final_plot_df["Percentage Of Predictions"],
         yerr=intervals,
         capsize=5,
-        fmt="none",
+        fmt="_",
+        markersize=10,
         ecolor="black",
     )
     ax.set_title("Distribution of Prediction Errors", fontsize=16, fontweight="bold")
     ax.set_xlabel("Error Threshold", fontsize=14, fontweight="bold")
     ax.set_ylabel("Percentage of Predictions", fontsize=14, fontweight="bold")
-
-    # Add bar labels on top of each bar (all in black)
-    for patch in ax.patches:
-        x_center = patch.get_x() + patch.get_width() / 2.0
-        y_top = patch.get_height()
-        label = f"{y_top:.3f}"
-        ax.text(
-            x_center,
-            y_top + 0.12,
-            label,
-            ha="center",
-            va="bottom",
-            color="black",
-            fontsize=12,
-            fontweight="bold",
-        )
     plt.tight_layout()
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += "_distrib.pdf"
+            save_path += ".pdf"
         plt.savefig(save_path, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
-    # ----------------- Part 2: Average Error vs. Predicted Exclusion Score Range ----------------- #
+    # ----------------- Part 2: Average Error vs. Predicted Score ----------------- #
     # Compute average absolute error and proportion for different predicted score ranges.
     plot_df2 = {
         "Hold-Out Fold": [],
@@ -1777,23 +1767,22 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
             )
     final_plot_df2 = pd.DataFrame(final_plot_df2)
 
-    # Use a continuous colormap for Plot 2 based on True Scores Proportion.
-    cmap = cm.get_cmap("coolwarm")
+    # Use a continuous colormap for the second plot based on True Scores Proportion
+    cmap = get_cmap("coolwarm")
     norm = Normalize(
         vmin=final_plot_df2["True Scores Proportion"].min(),
         vmax=final_plot_df2["True Scores Proportion"].max(),
     )
     colors_plot2 = [cmap(norm(val)) for val in final_plot_df2["True Scores Proportion"]]
 
-    # Plot 2: Vertical bar plot.
+    # Plot 2: Vertical bar plot
     fig, ax = plt.subplots(figsize=(10, 6))
-    barplot2 = sns.barplot(
+    sns.barplot(
         data=final_plot_df2,
         x="Predicted Exclusion Score Range",
         y="Absolute Error",
         ax=ax,
         palette=colors_plot2,
-        edgecolor="black",
     )
     intervals2 = np.array([final_plot_df2["CI95_low"], final_plot_df2["CI95_up"]])
     ax.errorbar(
@@ -1801,14 +1790,15 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
         y=final_plot_df2["Absolute Error"],
         yerr=intervals2,
         capsize=5,
-        fmt="none",
+        fmt="_",
+        markersize=10,
         ecolor="black",
     )
     # Add a red horizontal line at y = 0.2 with a label
     ax.axhline(0.2, linestyle="--", color="red", linewidth=2, label="Threshold: 0.2")
     ax.legend(loc="upper right", fontsize=12)
 
-    # Add a colorbar for the bar colors.
+    # Add a colorbar for the bar colors
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
     cbar = plt.colorbar(sm, ax=ax)
@@ -1821,31 +1811,10 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     )
     ax.set_xlabel("Predicted Exclusion Score Range", fontsize=14, fontweight="bold")
     ax.set_ylabel("Average Absolute Error", fontsize=14, fontweight="bold")
-
-    # Add bar labels at the center of each bar. Text color is black if the bar is bright, white if dark.
-    for patch in ax.patches:
-        x_center = patch.get_x() + patch.get_width() / 2.0
-        y_center = patch.get_height() / 2.0
-        label = f"{patch.get_height():.3f}"
-        facecolor = patch.get_facecolor()
-        # Compute perceived luminance.
-        luminance = 0.299 * facecolor[0] + 0.587 * facecolor[1] + 0.114 * facecolor[2]
-        text_color = "black" if luminance > 0.5 else "white"
-        ax.text(
-            x_center,
-            y_center,
-            label,
-            ha="center",
-            va="center",
-            color=text_color,
-            fontsize=12,
-            fontweight="bold",
-        )
-
     plt.tight_layout()
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += "best_range.pdf"
+            save_path += ".pdf"
         plt.savefig(save_path, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
@@ -1868,6 +1837,7 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
         ci_up = []
         for row in range(df.shape[0]):
             ho_name = df["Evaluation"].iloc[row]
+
             pipeline, method_df = load_lgbm_model(
                 "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
             )
@@ -1894,12 +1864,14 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
         df["CI95_low"] = ci_low
         df["CI95_up"] = ci_up
 
-    # Increase figure width for the first two plots
-    fig, ax = plt.subplots(2, 1, figsize=(13, 12), sharey=True)
+    fig, ax = plt.subplots(2, 1, figsize=(8, 12), sharey=True)
+
+    # Unification des couleurs avec viridis
+    cmap = sns.color_palette("viridis_r", as_cmap=True)
 
     # Pathogen MAE Bar Plot
     sns.barplot(
-        data=P_plot_df,
+        P_plot_df,
         x="Evaluation",
         y="MAE",
         ax=ax[0],
@@ -1915,38 +1887,13 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
         capsize=5,
         color="black",
     )
-    avg_P = P_plot_df["MAE"].mean()
-    ax[0].axhline(
-        avg_P,
-        linestyle="--",
-        color="orange",
-        linewidth=2,
-        label=f"MAE on Pathogens: {avg_P:.3f}",
-    )
-    ax[0].axhline(0.2, linestyle=":", color="red", linewidth=2, label="Threshold: 0.2")
     ax[0].set_xlabel("Pathogen", fontsize=14, fontweight="bold")
     ax[0].set_ylabel("Mean Absolute Error", fontsize=14, fontweight="bold")
     ax[0].tick_params(axis="x", rotation=45)
-    # Add bar labels (in white) at the center of each bar with ".3f" formatting.
-    for patch in ax[0].patches:
-        x_center = patch.get_x() + patch.get_width() / 2.0
-        y_top = patch.get_height()
-        label = f"{patch.get_height():.3f}"
-        ax[0].text(
-            x_center,
-            y_top + 0.015,
-            label,
-            ha="center",
-            va="center",
-            color="black",
-            fontsize=12,
-            fontweight="bold",
-        )
-    ax[0].legend()
 
     # Bacillus MAE Bar Plot
     sns.barplot(
-        data=B_plot_df,
+        B_plot_df,
         x="Evaluation",
         y="MAE",
         ax=ax[1],
@@ -1962,66 +1909,30 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
         capsize=5,
         color="black",
     )
-    avg_B = B_plot_df["MAE"].mean()
-    ax[1].axhline(
-        avg_B,
-        linestyle="--",
-        color="orange",
-        linewidth=2,
-        label=f"MAE on Bacillus: {avg_B:.3f}",
-    )
-    ax[1].axhline(0.2, linestyle=":", color="red", linewidth=2, label="Threshold: 0.2")
     ax[1].set_xlabel("Bacillus", fontsize=14, fontweight="bold")
     ax[1].set_ylabel("Mean Absolute Error", fontsize=14, fontweight="bold")
     ax[1].tick_params(axis="x", rotation=45)
-    # Add bar labels (in white) at the center of each bar with ".3f" formatting.
-    for patch in ax[1].patches:
-        x_center = patch.get_x() + patch.get_width() / 2.0
-        y_top = patch.get_height()
-        label = f"{patch.get_height():.3f}"
-        ax[1].text(
-            x_center,
-            y_top + 0.015,
-            label,
-            ha="center",
-            va="top",
-            color="black",
-            fontsize=12,
-            fontweight="bold",
-        )
-    ax[1].legend()
-    plt.tight_layout()
-    if save_path is not None:
-        if not save_path.endswith(".pdf"):
-            save_path += "_orgs.pdf"
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
-    if show:
-        plt.show()
 
-    # Interaction Heatmap with improved line visibility (linewidths increased to 1.0)
+    plt.tight_layout()
+    plt.show()
+
+    # Interaction Heatmap
     plt.figure(figsize=(6, 20))
     Int_plot_df.set_index("Evaluation", inplace=True)
-    avg_I = Int_plot_df["MAE"].mean()
     sns.heatmap(
         Int_plot_df[["MAE"]],
         annot=True,
-        fmt=".3f",
+        fmt=".2f",
         cmap="viridis_r",
-        linewidths=1.0,
+        linewidths=0.5,
         linecolor="black",
         cbar_kws={"label": "Mean Absolute Error"},
         annot_kws={"size": 12},
-        yticklabels=True,
     )
-    plt.yticks(fontsize=10)
-    plt.title(
-        f"Interaction MAE Heatmap | MAE on Interaction: {avg_I:.3f}",
-        fontsize=14,
-        fontweight="bold",
-    )
+    plt.title("Interaction MAE Heatmap", fontsize=14, fontweight="bold")
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += "_int.pdf"
+            save_path += ".pdf"
         plt.savefig(save_path, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
@@ -2030,10 +1941,10 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
     worst_int, worst_mae = Int_plot_df["MAE"].idxmax(), Int_plot_df["MAE"].max()
     best_int, best_mae = Int_plot_df["MAE"].idxmin(), Int_plot_df["MAE"].min()
     print(
-        f"Worst Interaction: {worst_int}, MAE = {worst_mae:.3f} (n={Int_plot_df.loc[worst_int]['n_samples']})"
+        f"Worst Interaction: {worst_int}, MAE = {worst_mae:.2f} (n={Int_plot_df.loc[worst_int]['n_samples']})"
     )
     print(
-        f"Best Interaction: {best_int}, MAE = {best_mae:.3f} (n={Int_plot_df.loc[best_int]['n_samples']})"
+        f"Best Interaction: {best_int}, MAE = {best_mae:.2f} (n={Int_plot_df.loc[best_int]['n_samples']})"
     )
 
 
@@ -2057,7 +1968,7 @@ def plot_global_SHAP(
     shap.summary_plot(shap_values, X_test)
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += f"_{ho_name}.pdf"
+            save_path += ".pdf"
         plt.savefig(save_path, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
@@ -2089,7 +2000,7 @@ def plot_local_SHAP(
     shap.plots.waterfall(shap_values[0])
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += f"_{ho_name}_{mode}.pdf"
+            save_path += ".pdf"
         plt.savefig(save_path, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
@@ -2285,7 +2196,7 @@ def plot_local_DiCE(
         ax = sns.heatmap(
             local_imp.values.reshape(-1, 1),
             annot=True,
-            fmt=".3f",
+            fmt=".2f",
             cmap="viridis",
             cbar_kws={"label": "Local Importance"},
             linewidths=0.5,
@@ -2327,7 +2238,7 @@ def plot_local_DiCE(
 
         # Plot the differences
         plt.figure(figsize=(12, 8))
-        sns.heatmap(diff_df.transpose(), cmap="RdBu_r", center=0, annot=True, fmt=".3f")
+        sns.heatmap(diff_df.transpose(), cmap="RdBu_r", center=0, annot=True, fmt=".2f")
         plt.title(
             "Feature Differences in Similar Instances (Alternative to DiCE)",
             fontsize=16,
@@ -2494,14 +2405,14 @@ if __name__ == "__main__":
         print("Running plot_err_distrib and saving to ./Plots/distrib_err.pdf")
         plot_err_distrib(
             "./Results/ablation_study/ho_None_LGBMRegressor_results.csv",
-            save_path="./Plots/distrib_err",
+            save_path="./Plots/distrib_err.pdf",
             show=False,
         )
     elif plot_type == "plot_err_by_org":
         print("Running plot_err_by_org and saving to ./Plots/err_by_org.pdf")
         plot_err_by_org(
             "./Results/ablation_study/ho_None_LGBMRegressor_results.csv",
-            save_path="./Plots/err_by_org",
+            save_path="./Plots/err_by_org.pdf",
             show=False,
         )
 
