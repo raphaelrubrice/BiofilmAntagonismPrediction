@@ -267,6 +267,9 @@ def evaluate_hold_out(
                 save_path, f"{estimator_name}_{ho_name}_model.txt"
             )
             estimator.booster_.save_model(model_save_path)
+
+            with open(model_save_path[-4] + "_pipeline.pkl", "wb") as f:
+                pkl.dump(estimator, f)
         return pd.concat(permutations)
 
 

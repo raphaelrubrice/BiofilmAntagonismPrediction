@@ -1590,13 +1590,31 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     }
     memory = {}
     for ho_name in results["Evaluation"]:
-        pipeline, method_df = load_lgbm_model(
-            "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
-        )
-        X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-        pipeline[:-1].fit(X_train)
-        X_test = pipeline[:-1].transform(X_test)
-        yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+        try:
+            method_df = pd.read_csv("./Data/Datasets/combinatoric_COI.csv")
+
+            file_list = os.listdir("./Results/models/")
+            file_list = ["./Results/models/" + file for file in file_list]
+            model_file = [file for file in file_list if ho_name in file][0]
+
+            with open(model_file, "rb") as f:
+                pipeline = pkl.load(f)
+
+            X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
+
+            X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
+
+            yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+        except Warning("Using pickling failed, trying load_lgbm function.."):
+            pipeline, method_df = load_lgbm_model(
+                "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
+            )
+            X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
+            pipeline[:-1].fit(X_train)
+            X_test = pipeline[:-1].transform(X_test)
+
+            yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+
         y_true = np.array(y_true).reshape(-1, 1)
         abs_err = np.abs(yhat - y_true)
         memory[ho_name] = {"yhat": yhat, "y_true": y_true}
@@ -1844,14 +1862,31 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
         for row in range(df.shape[0]):
             ho_name = df["Evaluation"].iloc[row]
 
-            pipeline, method_df = load_lgbm_model(
-                "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
-            )
-            X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-            pipeline[:-1].fit(X_train)
-            X_test = pipeline[:-1].transform(X_test)
+            try:
+                method_df = pd.read_csv("./Data/Datasets/combinatoric_COI.csv")
 
-            yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+                file_list = os.listdir("./Results/models/")
+                file_list = ["./Results/models/" + file for file in file_list]
+                model_file = [file for file in file_list if ho_name in file][0]
+
+                with open(model_file, "rb") as f:
+                    pipeline = pkl.load(f)
+
+                X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
+
+                X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
+
+                yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+            except Warning("Using pickling failed, trying load_lgbm function.."):
+                pipeline, method_df = load_lgbm_model(
+                    "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
+                )
+                X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
+                pipeline[:-1].fit(X_train)
+                X_test = pipeline[:-1].transform(X_test)
+
+                yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+
             y_true = np.array(y_true).reshape(-1, 1)
             abs_err = np.abs(yhat - y_true)
 
@@ -1966,13 +2001,34 @@ def plot_global_SHAP(
     save_path=None,
     show=False,
 ):
-    pipeline, method_df = load_lgbm_model(path_model_folder, path_df, ho_name)
+    try:
+        if path_df is None:
+            method_df = pd.read_csv("./Data/Datasets/combinatoric_COI.csv")
+        else:
+            method_df = pd.read_csv(path_df)
 
-    X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
+        if path_model_folder is None:
+            path_model_folder = "./Results/models/"
 
-    # Fit Preprocessing steps
-    pipeline[:-1].fit(X_train)
-    X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
+        file_list = os.listdir(path_model_folder)
+        file_list = [path_model_folder + file for file in file_list]
+        model_file = [file for file in file_list if ho_name in file][0]
+
+        with open(model_file, "rb") as f:
+            pipeline = pkl.load(f)
+
+        X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
+
+        X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
+
+    except Warning("Using pickling failed, trying load_lgbm function.."):
+        pipeline, method_df = load_lgbm_model(path_model_folder, path_df, ho_name)
+
+        X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
+
+        # Fit Preprocessing steps
+        pipeline[:-1].fit(X_train)
+        X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
 
     explainer = shap.TreeExplainer(pipeline[-1])
     shap_values = explainer.shap_values(X_test)
@@ -1993,15 +2049,37 @@ def plot_local_SHAP(
     save_path=None,
     show=False,
 ):
-    pipeline, method_df = load_lgbm_model(path_model_folder, path_df, ho_name)
+    try:
+        if path_df is None:
+            method_df = pd.read_csv("./Data/Datasets/combinatoric_COI.csv")
+        else:
+            method_df = pd.read_csv(path_df)
 
-    X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
+        if path_model_folder is None:
+            path_model_folder = "./Results/models/"
 
-    # Fit Preprocessing steps
-    pipeline[:-1].fit(X_train)
-    X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
+        file_list = os.listdir(path_model_folder)
+        file_list = [path_model_folder + file for file in file_list]
+        model_file = [file for file in file_list if ho_name in file][0]
 
-    yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+        with open(model_file, "rb") as f:
+            pipeline = pkl.load(f)
+
+        X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
+
+        X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
+
+        yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+    except Warning("Using pickling failed, trying load_lgbm function.."):
+        pipeline, method_df = load_lgbm_model(path_model_folder, path_df, ho_name)
+
+        X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
+
+        # Fit Preprocessing steps
+        pipeline[:-1].fit(X_train)
+        X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
+
+        yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
 
     abs_err = np.abs(yhat - np.array(Y_test).reshape(-1, 1))
     idx = np.argmax(abs_err) if mode == "worst" else np.argmin(abs_err)

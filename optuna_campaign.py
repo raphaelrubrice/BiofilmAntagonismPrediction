@@ -29,7 +29,7 @@ def objective(trial):
         "objective": "regression",
         "verbosity": -1,
         "boosting_type": "gbdt",
-        "n_estimators": trial.suggest_int("n_estimators", 50, 1000),
+        "n_estimators": trial.suggest_int("n_estimators", 100, 1000, step=10),
         "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 10.0, log=True),
         "lambda_l2": trial.suggest_float("lambda_l2", 1e-8, 10.0, log=True),
         "num_leaves": trial.suggest_int("num_leaves", 2, 64),

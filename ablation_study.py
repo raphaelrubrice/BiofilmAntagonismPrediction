@@ -10,8 +10,8 @@ from pipeline import create_pipeline, evaluate
 from plots import plot_feature_selection
 
 if __name__ == "__main__":
+    # Read the dataset and create a dictionary of DataFrames
     combinatoric_df = pd.read_csv("Data/Datasets/combinatoric_COI.csv")
-
     df_dict = {"combinatoric": combinatoric_df}
 
     target = ["Score"]
@@ -23,14 +23,13 @@ if __name__ == "__main__":
         "Bacillus",
         "Pathogene",
     ]
-
     num_cols = [
         col
         for col in df_dict["combinatoric"].columns
         if col not in cat_cols + remove_cols + target
     ]
 
-    # Retrieve optuna campaign best params:
+    # Retrieve optuna campaign best params
     with open("./Results/optuna_campaign/optuna_study.pkl", "rb") as f:
         study = pkl.load(f)
         best_params = study.best_trial.params
@@ -43,6 +42,7 @@ if __name__ == "__main__":
         + ["all_B", "all_P"]
         + [col for col in combinatoric_df.columns if col not in remove_cols]
     )
+
     for remove in Ablations:
         if remove == "all_B":
             remove_list = [
@@ -60,9 +60,10 @@ if __name__ == "__main__":
         num_cols_copy = list(set(num_cols).difference(set(remove_list)))
         cat_cols_copy = list(set(cat_cols).difference(set(remove_list)))
 
-        print(num_cols_copy)
-        print(cat_cols_copy)
-        print(remove_list)
+        print("Numerical columns:", num_cols_copy)
+        print("Categorical columns:", cat_cols_copy)
+        print("Removed columns:", remove_list)
+
         estimator = create_pipeline(
             num_cols_copy,
             cat_cols_copy,
@@ -71,6 +72,7 @@ if __name__ == "__main__":
             estimator=model,
             model_name="LGBMRegressor",
         )
+
         save = True if remove is None else False
         results = evaluate(
             estimator,
@@ -84,15 +86,25 @@ if __name__ == "__main__":
             save=save,
             save_path="./Results/models/",
         )
-
         results.to_csv(f"Results/ablation_study/ho_{remove}_LGBMRegressor_results.csv")
 
+        # Remove variables that are no longer needed to free GPU memory
+        del results, estimator, num_cols_copy, cat_cols_copy, remove_list
+        gc.collect()
+        cp.get_default_memory_pool().free_all_blocks()
+
     all_results = []
-    for file in os.listdir("Results/ablation_study/"):
+    ablation_folder = "Results/ablation_study/"
+    for file in os.listdir(ablation_folder):
         if file.endswith(".csv") and "ho" in file and "_all_results" not in file:
-            all_results.append(pd.read_csv("Results/ablation_study/" + file))
-    if all_results != []:
+            all_results.append(pd.read_csv(os.path.join(ablation_folder, file)))
+    if all_results:
         all_df = pd.concat(all_results, axis=0)
         all_df.to_csv("Results/ablation_study/ho_all_results.csv")
     else:
         print("No result files found.")
+
+    # Final clean-up: remove any remaining temporary objects and free GPU memory.
+    del combinatoric_df, df_dict, model, best_params, study, all_results
+    gc.collect()
+    cp.get_default_memory_pool().free_all_blocks()
