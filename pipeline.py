@@ -421,13 +421,11 @@ def select_features(
         # -------------------------------
         # For each group defined by [Evaluation, Model, Method]:
         #   - Identify the baseline performance (where Permutation == "No Permutation").
-        #   - For each candidate feature (where Permutation != "No Permutation"), compute the difference:
+        #   - For each candidate feature (where Permutation != "No Permutation"), compute:
         #       diff_RMSE = RMSE(permuted) - RMSE(baseline)
         #       diff_MAE  = MAE(permuted)  - MAE(baseline)
-        #   - Compute the cross mean difference as the average of these two differences.
-        # Then, group the results by candidate feature and compute weighted and unweighted averages.
-        # The candidate (feature) with the lowest weighted average difference is selected.
-
+        # Then, compute the weighted RMSE and weighted MAE per candidate feature,
+        # and finally compute the weighted cross mean as the average of the two.
         diff_list = []
         group_cols = ["Evaluation", "Model", "Method"]
         for name, group in results_df.groupby(group_cols):
@@ -438,6 +436,7 @@ def select_features(
             baseline_row = baseline.iloc[0]
             baseline_rmse = baseline_row["RMSE"]
             baseline_mae = baseline_row["MAE"]
+
             # Process rows with a candidate feature permutation.
             permuted = group[group["Permutation"] != "No Permutation"].copy()
             if permuted.empty:
@@ -452,7 +451,7 @@ def select_features(
 
         diff_df = pd.concat(diff_list, axis=0)
 
-        # Compute weighted and unweighted cross mean per candidate feature.
+        # Compute weighted RMSE and weighted MAE per candidate feature.
         summary_perm = (
             diff_df.groupby("Permutation")
             .apply(
@@ -460,20 +459,28 @@ def select_features(
                     {
                         "Weighted RMSE": np.sum(g["diff_RMSE"] * g["n_samples"])
                         / np.sum(g["n_samples"]),
+                        "Weighted MAE": np.sum(g["diff_MAE"] * g["n_samples"])
+                        / np.sum(g["n_samples"]),
                         "Unweighted RMSE": g["diff_RMSE"].mean(),
+                        "Unweighted MAE": g["diff_MAE"].mean(),
                     }
                 )
             )
             .reset_index()
         )
 
-        # Select the best permutation candidate (the one with the lowest weighted cross mean).
-        best_perm_idx = summary_perm["Weighted RMSE"].idxmin()
-        best_permutation = summary_perm.loc[best_perm_idx, "Permutation"]
-        best_perm_score = summary_perm.loc[best_perm_idx, "Weighted RMSE"]
+        # Compute weighted cross mean as the average of weighted RMSE and weighted MAE.
+        summary_perm["Weighted Cross Mean"] = (
+            summary_perm["Weighted RMSE"] + summary_perm["Weighted MAE"]
+        ) / 2
 
-        print("Best permutation feature (weighted):", best_permutation)
-        print("Best weighted metric:", best_perm_score)
+        # Select the best permutation candidate based on the lowest weighted cross mean.
+        best_perm_idx = summary_perm["Weighted Cross Mean"].idxmin()
+        best_permutation = summary_perm.loc[best_perm_idx, "Permutation"]
+        best_perm_score = summary_perm.loc[best_perm_idx, "Weighted Cross Mean"]
+
+        print("Best permutation feature (weighted cross mean):", best_permutation)
+        print("Best weighted cross mean metric:", best_perm_score)
 
         # Save the detailed differences and summary CSV files.
         diff_df.to_csv(

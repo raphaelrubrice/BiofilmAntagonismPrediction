@@ -43,6 +43,9 @@ def objective(trial):
         "tree_learner": "serial",
         "device": "cuda",
         "verbose_eval": False,
+        "metric": trial.suggest_categorical(
+            "metric", ["l1", "l2", "huber", "quantile"]
+        ),
     }
 
     estimator = LGBMRegressor(**param)
@@ -68,14 +71,22 @@ def objective(trial):
         shuffle=False,
     )
 
-    # print(results["Cross Mean (RMSE and MAE)"])
-
     # Compute terms for the weighted average
     results["Weighted RMSE"] = (
         results["RMSE"] * results["n_samples"] / results["n_samples"].sum()
     )
-    # We now return the sum of the column
-    return np.sum(results["Weighted RMSE"])
+
+    results["Weighted MAE"] = (
+        results["MAE"] * results["n_samples"] / results["n_samples"].sum()
+    )
+
+    # Compute the cross mean
+    cross_mean = 0.5 * (
+        np.sum(results["Weighted RMSE"]) + np.sum(results["Weighted MAE"])
+    )
+
+    # Return the cross mean
+    return cross_mean
 
 
 if __name__ == "__main__":

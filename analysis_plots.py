@@ -1605,7 +1605,8 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
             X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
 
             yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
-        except Warning("Using pickling failed, trying load_lgbm function.."):
+        except Exception as e:
+            Warning("Using pickling failed, trying load_lgbm function..")
             pipeline, method_df = load_lgbm_model(
                 "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
             )
@@ -1718,35 +1719,33 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
         yhat, y_true = memory[ho_name].values()
         abs_err = np.abs(yhat - y_true)
         _0_2 = (
-            np.mean(abs_err[yhat < 0.2])
-            if not check_empty(abs_err, yhat < 0.2)
-            else np.nan
+            np.mean(abs_err[yhat < 0.2]) if not check_empty(abs_err, yhat < 0.2) else 0
         )
-        n_0_2 = 0 if np.isnan(_0_2) else np.mean(yhat < 0.2)
+        n_0_2 = 0 if _0_2 == 0 else np.mean(yhat < 0.2)
         _0_4 = (
             np.mean(abs_err[(yhat >= 0.2) & (yhat < 0.4)])
             if not check_empty(abs_err, (yhat >= 0.2) & (yhat < 0.4))
-            else np.nan
+            else 0
         )
-        n_0_4 = 0 if np.isnan(_0_4) else np.mean((yhat >= 0.2) & (yhat < 0.4))
+        n_0_4 = 0 if _0_4 == 0 else np.mean((yhat >= 0.2) & (yhat < 0.4))
         _0_6 = (
             np.mean(abs_err[(yhat >= 0.4) & (yhat < 0.6)])
             if not check_empty(abs_err, (yhat >= 0.4) & (yhat < 0.6))
-            else np.nan
+            else 0
         )
-        n_0_6 = 0 if np.isnan(_0_6) else np.mean((yhat >= 0.4) & (yhat < 0.6))
+        n_0_6 = 0 if _0_6 == 0 else np.mean((yhat >= 0.4) & (yhat < 0.6))
         _0_8 = (
             np.mean(abs_err[(yhat >= 0.6) & (yhat < 0.8)])
             if not check_empty(abs_err, (yhat >= 0.6) & (yhat < 0.8))
-            else np.nan
+            else 0
         )
-        n_0_8 = 0 if np.isnan(_0_8) else np.mean((yhat >= 0.6) & (yhat < 0.8))
+        n_0_8 = 0 if _0_8 == 0 else np.mean((yhat >= 0.6) & (yhat < 0.8))
         sup_0_8 = (
             np.mean(abs_err[yhat >= 0.8])
             if not check_empty(abs_err, yhat >= 0.8)
-            else np.nan
+            else 0
         )
-        n_sup_0_8 = 0 if np.isnan(sup_0_8) else np.mean(yhat >= 0.8)
+        n_sup_0_8 = 0 if sup_0_8 == 0 else np.mean(yhat >= 0.8)
 
         plot_df2["Hold-Out Fold"].append(ho_name)
         plot_df2["< 0.2"].append(_0_2)
@@ -1771,16 +1770,20 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     for i in range(1, plot_df2.shape[1]):
         col_name = list(plot_df2.columns)[i]
         if not col_name.startswith("SIZE"):
+            print(plot_df2.iloc[:, i])
             avg = np.mean(plot_df2.iloc[:, i])
-            low, up = compute_CI(
-                plot_df2.iloc[:, i],
-                num_iter=5000,
-                confidence=95,
-                seed=62,
-                stat_func=stat_func,
-                mode=ci_mode,
-            )
-            low, up = abs(avg - low), abs(up - avg)
+            if avg != 0:
+                low, up = compute_CI(
+                    plot_df2.iloc[:, i],
+                    num_iter=5000,
+                    confidence=95,
+                    seed=62,
+                    stat_func=stat_func,
+                    mode=ci_mode,
+                )
+                low, up = abs(avg - low), abs(up - avg)
+            else:
+                avg, low, up = 0, 0, 0
             final_plot_df2["Absolute Error"].append(avg)
             final_plot_df2["Predicted Exclusion Score Range"].append(col_name)
             final_plot_df2["CI95_low"].append(low)
@@ -1877,7 +1880,8 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
                 X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
 
                 yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
-            except Warning("Using pickling failed, trying load_lgbm function.."):
+            except Exception as e:
+                Warning("Using pickling failed, trying load_lgbm function..")
                 pipeline, method_df = load_lgbm_model(
                     "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
                 )
@@ -2021,7 +2025,8 @@ def plot_global_SHAP(
 
         X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
 
-    except Warning("Using pickling failed, trying load_lgbm function.."):
+    except Exception as e:
+        Warning("Using pickling failed, trying load_lgbm function..")
         pipeline, method_df = load_lgbm_model(path_model_folder, path_df, ho_name)
 
         X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
@@ -2032,11 +2037,12 @@ def plot_global_SHAP(
 
     explainer = shap.TreeExplainer(pipeline[-1])
     shap_values = explainer.shap_values(X_test)
-    shap.summary_plot(shap_values, X_test)
+    shap.summary_plot(shap_values, X_test, show=False)
+    fig = plt.gcf()
     if save_path is not None:
         if not save_path.endswith(".pdf"):
             save_path += f"_{ho_name}.pdf"
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+        fig.savefig(save_path, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
@@ -2070,7 +2076,8 @@ def plot_local_SHAP(
         X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
 
         yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
-    except Warning("Using pickling failed, trying load_lgbm function.."):
+    except Exception as e:
+        Warning("Using pickling failed, trying load_lgbm function..")
         pipeline, method_df = load_lgbm_model(path_model_folder, path_df, ho_name)
 
         X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
@@ -2086,268 +2093,200 @@ def plot_local_SHAP(
 
     explainer = shap.TreeExplainer(pipeline[-1])
     shap_values = explainer(X_test.iloc[idx : idx + 1, :])
-    shap.plots.waterfall(shap_values[0])
+    shap.plots.waterfall(shap_values[0], show=False)
+    fig = plt.gcf()
     if save_path is not None:
         if not save_path.endswith(".pdf"):
             save_path += f"_{ho_name}_{mode}.pdf"
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+        fig.savefig(save_path, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
 
-def prepare_dice(path_model_folder=None, path_df=None, ho_name="1234_x_S.en"):
-    from pipeline import create_pipeline
-
-    if path_model_folder is None:
-        path_model_folder = "./Results/models/"
-    file_list = os.listdir(path_model_folder)
-    file_list = [path_model_folder + file for file in file_list]
-    model_file = [file for file in file_list if ho_name in file][0]
-
-    model = lgb.Booster(model_file=model_file)
-
-    if path_df is None:
-        method_df = pd.read_csv("./Data/Datasets/combinatoric_COI.csv")
-    else:
-        method_df = pd.read_csv(path_df)
-
-    target = ["Score"]
-    cat_cols = ["Modele"]
-    remove_cols = [
-        "Unnamed: 0",
-        "B_sample_ID",
-        "P_sample_ID",
-        "Bacillus",
-        "Pathogene",
-    ]
-
-    num_cols = [
-        col for col in method_df.columns if col not in cat_cols + remove_cols + target
-    ]
-
-    pipeline = create_pipeline(
-        num_cols,
-        cat_cols,
-        imputer="KNNImputer",
-        scaler="RobustScaler",
-        estimator=model,
-        model_name="LGBMRegressor",
-    )
-
-    X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
-
-    X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-    pipeline[:-1].fit(X_train)
-    X_test_transf = pipeline[:-1].transform(X_test)
-
-    # Make sure we convert categorical features to suitable format for DiCE
-    combined_df = pd.concat([X_test_transf, Y_test.reset_index(drop=True)], axis=1)
-
-    # Ensure all model columns are float
-    continuous_features = num_cols.copy()
-    if "Modele_I" in combined_df.columns:
-        continuous_features.extend(["Modele_I", "Modele_II", "Modele_III"])
-        combined_df["Modele_I"] = combined_df["Modele_I"].astype(float)
-        combined_df["Modele_II"] = combined_df["Modele_II"].astype(float)
-        combined_df["Modele_III"] = combined_df["Modele_III"].astype(float)
-
-    dice_data = dice_ml.Data(
-        dataframe=combined_df,
-        continuous_features=continuous_features,
-        outcome_name="Score",
-    )
-
-    dice_model = dice_ml.Model(model=model, model_type="regressor", backend="sklearn")
-    exp = dice_ml.Dice(dice_data, dice_model, method="genetic")
-
-    return pipeline, X_test, Y_test, dice_data, dice_model, exp
+# Import Alibi explainers
+# from alibi.explainers import IntegratedGradients, Counterfactual
 
 
-def plot_global_DiCE(
-    path_model_folder=None,
-    path_df=None,
-    ho_name="1234_x_S.en",
-    save_path=None,
-    show=False,
-):
-    """
-    Plots global feature importances computed using DiCE with a genetic algorithm.
-    Assumes that a DiCE explainer (exp) has been constructed.
-    """
-    _, _, _, data, model, exp = prepare_dice(path_model_folder, path_df, ho_name)
+# def prepare_alibi(path_model_folder=None, path_df=None, ho_name="1234_x_S.en"):
+#     """
+#     Loads the LightGBM model and dataset, creates a preprocessing pipeline,
+#     fits the pipeline on training data, transforms the test set, and returns:
+#       - the pipeline,
+#       - original test data (X_test, Y_test),
+#       - a prediction function (predict_fn) that wraps the pipeline,
+#       - the per-feature range (min, max) computed on the transformed test set.
+#     """
+#     from pipeline import create_pipeline
 
-    # Get the range of target values in the dataset
-    y_min = data.dataframe["Score"].min()
-    y_max = data.dataframe["Score"].max()
+#     # Set default model folder if needed
+#     if path_model_folder is None:
+#         path_model_folder = "./Results/models/"
+#     file_list = os.listdir(path_model_folder)
+#     file_list = [os.path.join(path_model_folder, file) for file in file_list]
+#     # Find the model file containing the given ho_name
+#     model_file = [file for file in file_list if ho_name in file][0]
 
-    # For regression tasks, we need to specify a desired range
-    # Using a range that covers the middle 60% of the target distribution
-    target_range = [y_max - 0.2, y_max]
+#     model = lgb.Booster(model_file=model_file)
 
-    # Compute global feature importances with desired_range parameter
-    global_imp = exp.global_feature_importance(data, desired_range=target_range)
+#     # Load dataset
+#     if path_df is None:
+#         method_df = pd.read_csv("./Data/Datasets/combinatoric_COI.csv")
+#     else:
+#         method_df = pd.read_csv(path_df)
 
-    # Plot as a publication-grade bar plot
-    ax = global_imp.plot(
-        kind="bar", figsize=(10, 6), color="steelblue", edgecolor="black"
-    )
-    ax.set_title(
-        "Global Feature Importances (DiCE Genetic)", fontsize=16, fontweight="bold"
-    )
-    ax.set_xlabel("Features", fontsize=14, fontweight="bold")
-    ax.set_ylabel("Importance", fontsize=14, fontweight="bold")
-    plt.xticks(rotation=45, ha="right")
-    plt.tight_layout()
-    if save_path is not None:
-        if not save_path.endswith(".pdf"):
-            save_path += f"_{ho_name}.pdf"
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
-    if show:
-        plt.show()
+#     target = ["Score"]
+#     cat_cols = ["Modele"]
+#     remove_cols = ["Unnamed: 0", "B_sample_ID", "P_sample_ID", "Bacillus", "Pathogene"]
+#     num_cols = [
+#         col for col in method_df.columns if col not in cat_cols + remove_cols + target
+#     ]
+
+#     # Create pipeline (assumes your create_pipeline function returns a list-like pipeline
+#     # where the last element is the estimator and the rest are preprocessing steps)
+#     pipeline = create_pipeline(
+#         num_cols,
+#         cat_cols,
+#         imputer="KNNImputer",
+#         scaler="RobustScaler",
+#         estimator=model,
+#         model_name="LGBMRegressor",
+#     )
+
+#     # Retrieve train/test splits (assumes retrieve_data returns X_train, X_test, Y_train, Y_test)
+#     X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
+
+#     # Fit the preprocessing pipeline (exclude estimator) and transform test set
+#     pipeline[:-1].fit(X_train)
+#     # Transform X_test; if returned as an array, convert it to a DataFrame
+#     X_test_transf = pipeline[:-1].transform(X_test)
+#     if not isinstance(X_test_transf, pd.DataFrame):
+#         # Use column names from original training data
+#         X_test_transf = pd.DataFrame(X_test_transf, columns=X_train.columns)
+
+#     # Create a prediction function that applies the preprocessing before predicting.
+#     def predict_fn(x):
+#         # Expect x as a DataFrame; if not, try to convert it
+#         if not isinstance(x, pd.DataFrame):
+#             x = pd.DataFrame(x, columns=X_test_transf.columns)
+#         # Ensure prediction output is 2D (n_samples, 1)
+#         preds = pipeline[-1].predict(x)
+#         return np.atleast_2d(preds).T
+
+#     # Compute feature ranges on transformed test set for use in counterfactual search
+#     feat_min = X_test_transf.min().values
+#     feat_max = X_test_transf.max().values
+#     feature_range = np.vstack([feat_min, feat_max])
+
+#     return pipeline, X_test, Y_test, predict_fn, feature_range
 
 
-def plot_local_DiCE(
-    path_model_folder=None,
-    path_df=None,
-    ho_name="1234_x_S.en",
-    mode="worst",
-    save_path=None,
-    show=False,
-):
-    """
-    Generates 5 counterfactuals for a given query instance and visualizes the local feature importances
-    computed using DiCE with a genetic algorithm. Instead of a barplot, a heatmap of the local feature
-    importances is produced for a publication-grade figure.
+# def plot_local_alibi(
+#     path_model_folder=None,
+#     path_df=None,
+#     ho_name="1234_x_S.en",
+#     mode="worst",
+#     save_path=None,
+#     show=False,
+# ):
+#     """
+#     Generates a counterfactual for a given query instance using Alibi's Counterfactual
+#     explainer and visualizes the local changes between the original instance and the counterfactual.
 
-    Parameters:
-    - path_model_folder (str, optional): Path to the folder containing models.
-    - path_df (str, optional): Path to the dataset.
-    - ho_name (str): Evaluation identifier.
-    - mode (str): "worst" to select instance with minimum prediction error; "best" for maximum.
-    """
-    # Prepare the DiCE objects and retrieve data/model/explainer
-    pipeline, X_test, Y_test, dice_data, model, exp = prepare_dice(
-        path_model_folder, path_df, ho_name
-    )
+#     Parameters:
+#       - path_model_folder, path_df, ho_name: parameters for data/model loading.
+#       - mode (str): "worst" to select the instance with the highest prediction error,
+#                     "best" to select the instance with the lowest error.
+#       - save_path (str, optional): if provided, saves the figure.
+#       - show (bool): whether to display the plot.
+#     """
+#     # Prepare data, prediction function, and feature range
+#     pipeline, X_test, Y_test, predict_fn, feature_range = prepare_alibi(
+#         path_model_folder, path_df, ho_name
+#     )
 
-    # Transform X_test using the pipeline (excluding the estimator)
-    X_test_t = pipeline[:-1].transform(X_test)
+#     # Transform X_test to get features used by the model
+#     X_test_transf = pipeline[:-1].transform(X_test)
+#     if not isinstance(X_test_transf, pd.DataFrame):
+#         X_test_transf = pd.DataFrame(X_test_transf, columns=X_test.columns)
 
-    # If transformation returns an array, convert it to DataFrame using dice_data.dataframe column names (excluding the outcome)
-    if not isinstance(X_test_t, pd.DataFrame):
-        feature_cols = [col for col in dice_data.dataframe.columns if col != "Score"]
-        X_test_t = pd.DataFrame(X_test_t, columns=feature_cols)
+#     # Make predictions on X_test_transf
+#     y_pred = predict_fn(X_test_transf).flatten()
+#     y_true = np.array(Y_test).flatten()
+#     abs_err = np.abs(y_pred - y_true)
 
-    # Make predictions
-    yhat = pipeline[-1].predict(X_test_t).reshape(-1, 1)
-    y_true = np.array(Y_test).reshape(-1, 1)
-    abs_err = np.abs(yhat - y_true)
+#     # Select query instance based on error
+#     idx = np.argmax(abs_err) if mode == "worst" else np.argmin(abs_err)
+#     query_instance = X_test_transf.iloc[[idx]].copy()
+#     target_value = y_true[idx]
+#     print(f"Target value (true): {target_value}")
+#     print("Query instance dtypes:\n", query_instance.dtypes)
 
-    # Select query instance: choose worst (highest error) or best (lowest error)
-    # Note: Changed logic - "worst" should be highest error, "best" should be lowest error
-    idx = np.argmax(abs_err) if mode == "worst" else np.argmin(abs_err)
+#     # Set tolerance for counterfactual target proximity
+#     tol = 0.05
 
-    # Select the query instance and ensure all values are float
-    query_instance = X_test_t.iloc[[idx]].copy()
-    # Convert all columns to float
-    for col in query_instance.columns:
-        query_instance[col] = query_instance[col].astype(float)
+#     # Initialize the Alibi Counterfactual explainer.
+#     # Note: For a regression task, target is set to the desired output value.
+#     cf_explainer = Counterfactual(
+#         predict_fn,
+#         shape=(1, X_test_transf.shape[1]),
+#         target=target_value,
+#         tol=tol,
+#         feature_range=feature_range,
+#         max_iter=1000,
+#         lam_init=1e-1,
+#         verbose=True,
+#         early_stop=50,
+#     )
 
-    target = y_true[idx]
-    print(f"Target value: {target}")
-    print("Query instance dtypes:\n", query_instance.dtypes)
+#     # Generate counterfactual for the query instance
+#     explanation = cf_explainer.explain(query_instance.to_numpy())
 
-    # Define desired range for counterfactuals (a small range around the target)
-    desired_range = [target - 0.05, target + 0.05]
+#     if explanation.cf is None:
+#         raise ValueError("No counterfactual found.")
 
-    try:
-        # Generate 5 counterfactuals for the query instance using random initialization
-        # This avoids KD-tree issues
-        cf = exp.generate_counterfactuals(
-            query_instance,
-            total_CFs=5,
-            desired_range=desired_range,
-            initialization="random",
-        )
+#     # Retrieve counterfactual and convert to DataFrame
+#     cf_instance = pd.DataFrame(explanation.cf, columns=query_instance.columns)
 
-        # Compute local feature importances
-        local_imp = exp.local_feature_importance(cf)
+#     # Create a comparison table: original, counterfactual, and absolute differences.
+#     comp_df = query_instance.reset_index(drop=True).T.copy()
+#     comp_df.columns = ["Original"]
+#     comp_df["Counterfactual"] = cf_instance.T.iloc[:, 0]
+#     comp_df["Absolute Difference"] = (
+#         comp_df["Counterfactual"] - comp_df["Original"]
+#     ).abs()
 
-        # Ensure we have a DataFrame with one column named "Importance"
-        if not isinstance(local_imp, pd.DataFrame):
-            local_imp = pd.DataFrame(local_imp, columns=["Importance"])
+#     # Plot the table as a heatmap for differences.
+#     plt.figure(figsize=(10, max(4, 0.4 * len(comp_df))))
+#     # We display the absolute differences as a heatmap
+#     ax = sns.heatmap(
+#         comp_df[["Absolute Difference"]],
+#         annot=True,
+#         fmt=".2f",
+#         cmap="RdBu_r",
+#         cbar_kws={"label": "Absolute Difference"},
+#         linewidths=0.5,
+#         linecolor="black",
+#         yticklabels=comp_df.index,
+#     )
+#     plt.title(
+#         "Local Counterfactual Explanation (Alibi)", fontsize=16, fontweight="bold"
+#     )
+#     plt.ylabel("Features", fontsize=14, fontweight="bold")
+#     plt.xlabel("")
+#     plt.tight_layout()
 
-        # Sort by importance for better visualization
-        local_imp = local_imp.sort_values(by="Importance", ascending=False)
+#     if save_path is not None:
+#         if not save_path.endswith(".pdf"):
+#             save_path += f"_{ho_name}_{mode}.pdf"
+#         plt.savefig(save_path, format="pdf", bbox_inches="tight")
+#     if show:
+#         plt.show()
 
-        # Plot a heatmap of the local feature importances
-        plt.figure(figsize=(10, 6))
-        ax = sns.heatmap(
-            local_imp.values.reshape(-1, 1),
-            annot=True,
-            fmt=".2f",
-            cmap="viridis",
-            cbar_kws={"label": "Local Importance"},
-            linewidths=0.5,
-            linecolor="black",
-            yticklabels=local_imp.index,
-        )
-        ax.set_title(
-            "Local Feature Importances (DiCE Genetic)", fontsize=16, fontweight="bold"
-        )
-        ax.set_xlabel("", fontsize=14)
-        ax.set_ylabel("Features", fontsize=14, fontweight="bold")
-        plt.yticks(rotation=0)
-        plt.tight_layout()
-        if save_path is not None:
-            if not save_path.endswith(".pdf"):
-                save_path += f"_{ho_name}_{mode}.pdf"
-            plt.savefig(save_path, format="pdf", bbox_inches="tight")
-        if show:
-            plt.show()
+#     # Also print the comparison table
+#     print("Comparison of Original and Counterfactual:")
+#     print(comp_df)
 
-        return cf, local_imp
-
-    except Exception as e:
-        print(f"Error generating counterfactuals: {str(e)}")
-        print("Trying alternative approach...")
-
-        # Alternative approach: Generate random counterfactuals
-        # This is a fallback if the genetic method fails
-        from sklearn.neighbors import NearestNeighbors
-
-        # Get similar instances from the dataset
-        X_sample = dice_data.dataframe.drop(columns=["Score"]).sample(
-            min(100, len(dice_data.dataframe))
-        )
-        nn = NearestNeighbors(n_neighbors=5)
-        nn.fit(X_sample)
-        _, indices = nn.kneighbors(query_instance)
-
-        print("Using nearest neighbors as counterfactuals")
-
-        # Create a simple visualization of feature differences
-        neighbors = X_sample.iloc[indices[0]]
-        diff_df = neighbors - query_instance.values
-
-        # Plot the differences
-        plt.figure(figsize=(12, 8))
-        sns.heatmap(diff_df.transpose(), cmap="RdBu_r", center=0, annot=True, fmt=".2f")
-        plt.title(
-            "Feature Differences in Similar Instances (Alternative to DiCE)",
-            fontsize=16,
-        )
-        plt.ylabel("Features", fontsize=14)
-        plt.xlabel("Similar Instance", fontsize=14)
-        plt.tight_layout()
-        if save_path is not None:
-            if not save_path.endswith(".pdf"):
-                save_path += f"_{ho_name}_{mode}.pdf"
-            plt.savefig(save_path, format="pdf", bbox_inches="tight")
-        if show:
-            plt.show()
-
-        return neighbors, diff_df.abs().mean().sort_values(ascending=False)
+#     return explanation, comp_df
 
 
 if __name__ == "__main__":
@@ -2534,27 +2473,27 @@ if __name__ == "__main__":
             save_path="./Plots/local_SHAP",
             show=False,
         )
-    elif plot_type == "plot_global_DiCE":
-        print("Running plot_global_DiCE and saving to ./Plots/global_DiCE.pdf")
-        plot_global_DiCE(
-            ho_name="1234_x_S.en", save_path="./Plots/global_DiCE", show=False
-        )
-    elif plot_type == "plot_local_DiCE":
-        print(
-            "Running plot_local_DiCE (worst) and saving to ./Plots/local_DiCE_worst.pdf"
-        )
-        plot_local_DiCE(
-            ho_name="1234_x_S.en",
-            mode="worst",
-            save_path="./Plots/local_DiCE",
-            show=False,
-        )
-        print(
-            "Running plot_local_DiCE (best) and saving to ./Plots/local_DiCE_best.pdf"
-        )
-        plot_local_DiCE(
-            ho_name="1234_x_S.en",
-            mode="best",
-            save_path="./Plots/local_DiCE",
-            show=False,
-        )
+    # elif plot_type == "plot_global_DiCE":
+    #     print("Running plot_global_DiCE and saving to ./Plots/global_DiCE.pdf")
+    #     plot_global_DiCE(
+    #         ho_name="1234_x_S.en", save_path="./Plots/global_DiCE", show=False
+    #     )
+    # elif plot_type == "plot_local_DiCE":
+    #     print(
+    #         "Running plot_local_DiCE (worst) and saving to ./Plots/local_DiCE_worst.pdf"
+    #     )
+    #     plot_local_DiCE(
+    #         ho_name="1234_x_S.en",
+    #         mode="worst",
+    #         save_path="./Plots/local_DiCE",
+    #         show=False,
+    #     )
+    #     print(
+    #         "Running plot_local_DiCE (best) and saving to ./Plots/local_DiCE_best.pdf"
+    #     )
+    #     plot_local_DiCE(
+    #         ho_name="1234_x_S.en",
+    #         mode="best",
+    #         save_path="./Plots/local_DiCE",
+    #         show=False,
+    #     )

@@ -35,7 +35,7 @@ if __name__ == "__main__":
     estimator_name = "LGBMRegressor"
 
     best_ablation = None
-    previous = 0.208
+    previous = (0.208 + 0.158) / 2
     current = 0
 
     i = 0
