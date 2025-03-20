@@ -1642,7 +1642,7 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
                 "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
             )
             X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-            pipeline[:-1].fit(X_train.sample(100))
+            pipeline[:-1].fit(X_train)
             X_test = pipeline[:-1].transform(X_test)
 
             yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
@@ -1945,7 +1945,7 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
                     "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
                 )
                 X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-                pipeline[:-1].fit(X_train.sample(100))
+                pipeline[:-1].fit(X_train)
                 X_test = pipeline[:-1].transform(X_test)
 
                 yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
@@ -2120,7 +2120,7 @@ def plot_global_SHAP(
         Warning("Using pickling failed, trying load_lgbm function..")
         pipeline, method_df = load_lgbm_model(path_model_folder, path_df, ho_name)
         X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
-        pipeline[:-1].fit(X_train.sample(100))
+        pipeline[:-1].fit(X_train)
         X_test = pipeline[:-1].transform(X_test)
 
     explainer = shap.TreeExplainer(pipeline[-1])
@@ -2184,7 +2184,7 @@ def plot_local_SHAP(
         X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
 
         # Fit Preprocessing steps
-        pipeline[:-1].fit(X_train.sample(100))
+        pipeline[:-1].fit(X_train)
         X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
 
         yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
@@ -2257,7 +2257,7 @@ def plot_local_SHAP(
 #     X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
 
 #     # Fit the preprocessing pipeline (exclude estimator) and transform test set
-#     pipeline[:-1].fit(X_train.sample(100))
+#     pipeline[:-1].fit(X_train)
 #     # Transform X_test; if returned as an array, convert it to a DataFrame
 #     X_test_transf = pipeline[:-1].transform(X_test)
 #     if not isinstance(X_test_transf, pd.DataFrame):
