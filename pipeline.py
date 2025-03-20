@@ -443,6 +443,19 @@ def select_features(
                 continue
             permuted["diff_RMSE"] = permuted["RMSE"] - baseline_rmse
             permuted["diff_MAE"] = permuted["MAE"] - baseline_mae
+            permuted["Weighted diff_RMSE"] = (
+                permuted["diff_RMSE"]
+                * permuted["n_samples"]
+                / np.sum(permuted["n_samples"])
+            )
+            permuted["Weighted diff_MAE"] = (
+                permuted["diff_MAE"]
+                * permuted["n_samples"]
+                / np.sum(permuted["n_samples"])
+            )
+            permuted["Weighted Cross Mean"] = 0.5 * (
+                permuted["Weighted diff_MAE"] + permuted["Weighted diff_RMSE"]
+            )
             diff_list.append(permuted)
 
         if len(diff_list) == 0:
@@ -457,10 +470,8 @@ def select_features(
             .apply(
                 lambda g: pd.Series(
                     {
-                        "Weighted RMSE": np.sum(g["diff_RMSE"] * g["n_samples"])
-                        / np.sum(g["n_samples"]),
-                        "Weighted MAE": np.sum(g["diff_MAE"] * g["n_samples"])
-                        / np.sum(g["n_samples"]),
+                        "Weighted RMSE": np.sum(g["Weighted diff_RMSE"]),
+                        "Weighted MAE": np.sum(g["Weighted diff_MAE"]),
                         "Unweighted RMSE": g["diff_RMSE"].mean(),
                         "Unweighted MAE": g["diff_MAE"].mean(),
                     }

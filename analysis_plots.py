@@ -889,11 +889,13 @@ def plot_native_feature_selection(
     for permutation in pd.unique(results["Permutation"]):
         if permutation != "No Permutation":
             mask = results["Permutation"] == permutation
-            avg = results[mask]["diff_RMSE"].mean()
+            # this column contains precomputed terms of the mean with their
+            # weights already applied thus the sum instead of mean
+            avg = results[mask]["Weighted Cross Mean"].sum()
 
             if avg != 0:
                 low, up = compute_CI(
-                    results[mask]["diff_RMSE"],
+                    results[mask]["Weighted Cross Mean"],
                     num_iter=5000,
                     confidence=95,
                     seed=62,
@@ -952,7 +954,20 @@ def plot_native_feature_selection(
         fontsize=16,
         fontweight="bold",
     )
-
+    for i, patch in enumerate(ax.patches):
+        y_center = patch.get_y() + patch.get_height() / 2.0
+        x_top = patch.get_width() + intervals[1, i]
+        label = f"{patch.get_width():.3f}"
+        ax.text(
+            x_top + 0.005,
+            y_center - 0.005,
+            label,
+            ha="center",
+            va="bottom",
+            color="black",
+            fontsize=12,
+            fontweight="bold",
+        )
     # Adjust layout
     plt.tight_layout()
     if save_path is not None:
@@ -1061,7 +1076,20 @@ def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=F
         color="black",
         alpha=0.8,
     )
-
+    for i, patch in enumerate(ax.patches):
+        y_center = patch.get_y() + patch.get_height() / 2.0
+        x_top = patch.get_width() + intervals[1, i]
+        label = f"{patch.get_width():.3f}"
+        ax.text(
+            x_top + 0.005,
+            y_center - 0.002,
+            label,
+            ha="center",
+            va="bottom",
+            color="black",
+            fontsize=12,
+            fontweight="bold",
+        )
     # Improve labels and title
     ax.set_xlabel(
         "Permutation Feature Importance (PFI)", fontsize=14, fontweight="bold"
@@ -1084,6 +1112,9 @@ def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=F
 
     # Set feature names as index for heatmap
     plot_df.set_index("Feature", inplace=True)
+    plot_df.drop(index="prod_II_III", inplace=True)
+    plot_df.drop(index="prod_I_III", inplace=True)
+    plot_df.drop(index="prod_I_II", inplace=True)
 
     # Create heatmap
     plt.figure(figsize=(12, 26))
@@ -1232,7 +1263,7 @@ def plot_feature_importance_heatmap(path_model_folder=None, save_path=None, show
         linewidths=0.5,
         linecolor="gray",
         # annot=True,  # Show values in heatmap
-        fmt=".2f",
+        fmt=".3f",
     )
 
     # Titles and labels
@@ -1611,7 +1642,7 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
                 "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
             )
             X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-            pipeline[:-1].fit(X_train)
+            pipeline[:-1].fit(X_train.sample(100))
             X_test = pipeline[:-1].transform(X_test)
 
             yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
@@ -1689,6 +1720,20 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
         markersize=10,
         ecolor="black",
     )
+    for i, patch in enumerate(ax.patches):
+        x_center = patch.get_x() + patch.get_width() / 2.0
+        y_top = patch.get_height() + intervals[1, i]
+        label = f"{patch.get_height():.3f}"
+        ax.text(
+            x_center,
+            y_top + 0.005,
+            label,
+            ha="center",
+            va="bottom",
+            color="black",
+            fontsize=12,
+            fontweight="bold",
+        )
     ax.set_title("Distribution of Prediction Errors", fontsize=16, fontweight="bold")
     ax.set_xlabel("Error Threshold", fontsize=14, fontweight="bold")
     ax.set_ylabel("Percentage of Predictions", fontsize=14, fontweight="bold")
@@ -1821,6 +1866,20 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
         markersize=10,
         ecolor="black",
     )
+    for i, patch in enumerate(ax.patches):
+        x_center = patch.get_x() + patch.get_width() / 2.0
+        y_top = patch.get_height() + intervals2[1, i]
+        label = f"{patch.get_height():.3f}"
+        ax.text(
+            x_center,
+            y_top + 0.003,
+            label,
+            ha="center",
+            va="bottom",
+            color="black",
+            fontsize=12,
+            fontweight="bold",
+        )
     # Add a red horizontal line at y = 0.2 with a label
     ax.axhline(0.2, linestyle="--", color="red", linewidth=2, label="Threshold: 0.2")
     ax.legend(loc="upper right", fontsize=12)
@@ -1886,7 +1945,7 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
                     "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
                 )
                 X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-                pipeline[:-1].fit(X_train)
+                pipeline[:-1].fit(X_train.sample(100))
                 X_test = pipeline[:-1].transform(X_test)
 
                 yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
@@ -1909,7 +1968,7 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
         df["CI95_low"] = ci_low
         df["CI95_up"] = ci_up
 
-    fig, ax = plt.subplots(2, 1, figsize=(8, 12), sharey=True)
+    fig, ax = plt.subplots(2, 1, figsize=(12, 10), sharey=True)
 
     # Unification des couleurs avec viridis
     cmap = sns.color_palette("viridis_r", as_cmap=True)
@@ -1935,6 +1994,22 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
     ax[0].set_xlabel("Pathogen", fontsize=14, fontweight="bold")
     ax[0].set_ylabel("Mean Absolute Error", fontsize=14, fontweight="bold")
     ax[0].tick_params(axis="x", rotation=45)
+    # Add bar labels (in black) on top of each bar with ".3f" formatting.
+    for patch in ax[0].patches:
+        x_center = patch.get_x() + patch.get_width() / 2.0
+        y_top = patch.get_height()
+        label = f"{patch.get_height():.3f}"
+        ax[0].text(
+            x_center,
+            y_top + 0.01,
+            label,
+            ha="center",
+            va="bottom",
+            color="black",
+            fontsize=12,
+            fontweight="bold",
+        )
+    ax[0].legend(loc="upper right", fontsize=12)
 
     # Bacillus MAE Bar Plot
     sns.barplot(
@@ -1958,6 +2033,22 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
     ax[1].set_ylabel("Mean Absolute Error", fontsize=14, fontweight="bold")
     ax[1].tick_params(axis="x", rotation=45)
 
+    # Add bar labels (in white) at the center of each bar with ".3f" formatting.
+    for patch in ax[1].patches:
+        x_center = patch.get_x() + patch.get_width() / 2.0
+        y_top = patch.get_height()
+        label = f"{patch.get_height():.3f}"
+        ax[1].text(
+            x_center,
+            y_top + 0.01,
+            label,
+            ha="center",
+            va="center",
+            color="black",
+            fontsize=12,
+            fontweight="bold",
+        )
+    ax[1].legend(loc="upper right", fontsize=12)
     plt.tight_layout()
     if save_path is not None:
         if not save_path.endswith(".pdf"):
@@ -1972,12 +2063,13 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
     sns.heatmap(
         Int_plot_df[["MAE"]],
         annot=True,
-        fmt=".2f",
+        fmt=".3f",
         cmap="viridis_r",
         linewidths=0.5,
         linecolor="black",
         cbar_kws={"label": "Mean Absolute Error"},
-        annot_kws={"size": 12},
+        annot_kws={"size": 10},
+        yticklabels=True,
     )
     plt.title("Interaction MAE Heatmap", fontsize=14, fontweight="bold")
     if save_path is not None:
@@ -1991,10 +2083,10 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
     worst_int, worst_mae = Int_plot_df["MAE"].idxmax(), Int_plot_df["MAE"].max()
     best_int, best_mae = Int_plot_df["MAE"].idxmin(), Int_plot_df["MAE"].min()
     print(
-        f"Worst Interaction: {worst_int}, MAE = {worst_mae:.2f} (n={Int_plot_df.loc[worst_int]['n_samples']})"
+        f"Worst Interaction: {worst_int}, MAE = {worst_mae:.3f} (n={Int_plot_df.loc[worst_int]['n_samples']})"
     )
     print(
-        f"Best Interaction: {best_int}, MAE = {best_mae:.2f} (n={Int_plot_df.loc[best_int]['n_samples']})"
+        f"Best Interaction: {best_int}, MAE = {best_mae:.3f} (n={Int_plot_df.loc[best_int]['n_samples']})"
     )
 
 
@@ -2022,27 +2114,36 @@ def plot_global_SHAP(
             pipeline = pkl.load(f)
 
         X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
-
         X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
 
     except Exception as e:
         Warning("Using pickling failed, trying load_lgbm function..")
         pipeline, method_df = load_lgbm_model(path_model_folder, path_df, ho_name)
-
         X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
-
-        # Fit Preprocessing steps
-        pipeline[:-1].fit(X_train)
-        X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
+        pipeline[:-1].fit(X_train.sample(100))
+        X_test = pipeline[:-1].transform(X_test)
 
     explainer = shap.TreeExplainer(pipeline[-1])
     shap_values = explainer.shap_values(X_test)
-    shap.summary_plot(shap_values, X_test, show=False)
-    fig = plt.gcf()
+
+    plt.figure(figsize=(12, 12))
+    shap.plots.bar(explainer(X_test), show=False)
+    plt.title("Feature Importances", fontsize=13, fontweight="bold")
     if save_path is not None:
         if not save_path.endswith(".pdf"):
-            save_path += f"_{ho_name}.pdf"
-        fig.savefig(save_path, format="pdf", bbox_inches="tight")
+            save_path += f"_importances_{ho_name}.pdf"
+        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+    if show:
+        plt.show()
+
+    plt.figure(figsize=(10, 10))
+    shap.summary_plot(shap_values, X_test, show=False, plot_size=None)
+    plt.title("Feature value impact on model outputs", fontsize=13, fontweight="bold")
+
+    if save_path is not None:
+        if not save_path.endswith(".pdf"):
+            save_path += f"_impact_{ho_name}.pdf"
+        plt.savefig(save_path, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
@@ -2083,7 +2184,7 @@ def plot_local_SHAP(
         X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
 
         # Fit Preprocessing steps
-        pipeline[:-1].fit(X_train)
+        pipeline[:-1].fit(X_train.sample(100))
         X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
 
         yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
@@ -2094,11 +2195,11 @@ def plot_local_SHAP(
     explainer = shap.TreeExplainer(pipeline[-1])
     shap_values = explainer(X_test.iloc[idx : idx + 1, :])
     shap.plots.waterfall(shap_values[0], show=False)
-    fig = plt.gcf()
+    plt.title(f"SHAP Explanation of the {mode} prediction.")
     if save_path is not None:
         if not save_path.endswith(".pdf"):
             save_path += f"_{ho_name}_{mode}.pdf"
-        fig.savefig(save_path, format="pdf", bbox_inches="tight")
+        plt.savefig(save_path, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
@@ -2156,7 +2257,7 @@ def plot_local_SHAP(
 #     X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
 
 #     # Fit the preprocessing pipeline (exclude estimator) and transform test set
-#     pipeline[:-1].fit(X_train)
+#     pipeline[:-1].fit(X_train.sample(100))
 #     # Transform X_test; if returned as an array, convert it to a DataFrame
 #     X_test_transf = pipeline[:-1].transform(X_test)
 #     if not isinstance(X_test_transf, pd.DataFrame):
@@ -2261,7 +2362,7 @@ def plot_local_SHAP(
 #     ax = sns.heatmap(
 #         comp_df[["Absolute Difference"]],
 #         annot=True,
-#         fmt=".2f",
+#         fmt=".3f",
 #         cmap="RdBu_r",
 #         cbar_kws={"label": "Absolute Difference"},
 #         linewidths=0.5,
