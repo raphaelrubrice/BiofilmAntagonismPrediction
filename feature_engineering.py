@@ -78,7 +78,7 @@ if __name__ == "__main__":
     # df_dict = {"avg": FE_avg_df}
 
     feature_to_remove = None
-    previous_metric = (0.209 + 0.158) / 2
+    previous_metric = None
     cross_mean_metric = None
 
     i = 0
@@ -128,6 +128,8 @@ if __name__ == "__main__":
         print("*********")
 
         # Stop if the error (PFI/cross mean) increased compared to the previous iteration.
+        if i == 0:
+            previous_metric = cross_mean_metric
         if cross_mean_metric >= previous_metric:
             break
 
