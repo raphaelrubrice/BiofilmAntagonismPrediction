@@ -11,7 +11,7 @@ from plots import plot_feature_selection
 
 if __name__ == "__main__":
     # Read the dataset and create a dictionary of DataFrames
-    combinatoric_df = pd.read_csv("Data/Datasets/combinatoric_COI.csv")
+    combinatoric_df = pd.read_csv("Data/Datasets/fe_combinatoric_COI.csv")
     df_dict = {"combinatoric": combinatoric_df}
 
     target = ["Score"]

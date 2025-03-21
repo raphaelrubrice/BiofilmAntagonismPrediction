@@ -10,7 +10,7 @@ import optuna
 
 # Feature selection experiment showed that all native features were useful and none of the designed features were.
 # So we can simply use our original dataset
-combinatoric_df = pd.read_csv("Data/Datasets/combinatoric_COI.csv")
+combinatoric_df = pd.read_csv("Data/Datasets/fe_combinatoric_COI.csv")
 
 df_dict = {"combinatoric": combinatoric_df}
 

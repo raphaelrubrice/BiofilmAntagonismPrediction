@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import pickle as pkl
-import os, re, argparse
+import os, re, argparse, glob
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -864,111 +864,131 @@ def plot_native_feature_selection(
     path_df=None, ci_mode="bca", save_path=None, show=False
 ):
     """
-    Plot the Permutation Feature Importance (PFI) with 95% Confidence Intervals.
+    Plot the Permutation Feature Importance (PFI) with 95% Confidence Intervals
+    for all step_i files in the specified folder.
 
     Parameters:
-    - path_df (str, optional): Path to CSV file containing feature selection results.
-    - ci_mode (str): Mode for computing confidence intervals (default: "t").
-
-    This function reads the results, calculates mean PFI values, and visualizes
-    them as a bar plot with error bars representing confidence intervals.
+    - folder_path (str, optional): Path to folder containing CSV step files.
+      Defaults to "./Results/native_feature_selection/".
+    - ci_mode (str): Mode for computing confidence intervals (default: "bca").
+    - save_path (str, optional): File path (without extension) to save the figure as PDF.
+    - show (bool): Whether to display the plot.
     """
-
-    # Load results
     if path_df is None:
-        results = pd.read_csv(
-            "./Results/native_feature_selection/step_1_LGBMRegressor_controled_homology_permutation_details.csv"
-        )
+        folder = "./Results/native_feature_selection/"
+    elif os.path.isdir(path_df):
+        folder = path_df
     else:
-        results = pd.read_csv(path_df)
+        folder = None
 
-    # Initialize dictionary to store feature importance data
-    plot_df = {"Feature": [], "PFI": [], "CI95_low": [], "CI95_up": []}
+    if folder is not None:
+        # Look for step_i files in the folder.
+        file_pattern = os.path.join(folder, "step_*_permutation_details.csv")
+        file_list = sorted(glob.glob(file_pattern))
+    else:
+        file_list = [path_df]
 
-    # Compute PFI and Confidence Intervals for each feature permutation
-    for permutation in pd.unique(results["Permutation"]):
-        if permutation != "No Permutation":
-            mask = results["Permutation"] == permutation
-            # this column contains precomputed terms of the mean with their
-            # weights already applied thus the sum instead of mean
-            avg = results[mask]["Weighted Cross Mean"].sum()
+    if not file_list:
+        print("No step files found in the specified path.")
+        return
 
-            if avg != 0:
-                low, up = compute_CI(
-                    results[mask]["Weighted Cross Mean"],
-                    num_iter=5000,
-                    confidence=95,
-                    seed=62,
-                    mode=ci_mode,
-                )
-                # Specify the size not the absolute values of the CI
-                low, up = abs(avg - low), abs(up - avg)
-            else:
-                avg, low, up = 0, 0, 0
+    n_steps = len(file_list)
+    # Create a subplot for each step file.
+    fig, axes = plt.subplots(n_steps, 1, figsize=(10, 6 * n_steps), squeeze=False)
+    axes = axes.flatten()
 
-            plot_df["Feature"].append(permutation)
-            plot_df["PFI"].append(avg)
-            plot_df["CI95_low"].append(low)
-            plot_df["CI95_up"].append(up)
-
-    # Convert to DataFrame and sort by importance
-    plot_df = pd.DataFrame(plot_df).sort_values("PFI", ascending=False)
-
-    # Set seaborn style for a clean look
     sns.set_theme(style="whitegrid")
 
-    # Define figure size
-    fig, ax = plt.subplots(figsize=(10, 6))
+    for idx, file in enumerate(file_list):
+        try:
+            # Read the permutation details for the step.
+            step_df = pd.read_csv(file)
 
-    # Create bar plot
-    sns.barplot(
-        data=plot_df,
-        y="Feature",
-        x="PFI",
-        orient="h",
-        hue="Feature",
-        palette="magma_r",  # High-contrast perceptually uniform colormap
-        edgecolor="black",
-    )
+            # Initialize dictionary to accumulate plotting data.
+            plot_data = {"Feature": [], "PFI": [], "CI95_low": [], "CI95_up": []}
 
-    # Confidence Interval error bars
-    intervals = np.array([plot_df["CI95_low"], plot_df["CI95_up"]])
-    ax.errorbar(
-        y=np.arange(plot_df.shape[0]),
-        x=plot_df["PFI"],
-        xerr=intervals,
-        fmt="o",
-        capsize=4,
-        elinewidth=1.5,
-        color="black",
-        alpha=0.8,
-    )
+            # Compute PFI and confidence intervals for each candidate feature.
+            for permutation in pd.unique(step_df["Permutation"]):
+                if permutation != "No Permutation":
+                    mask = step_df["Permutation"] == permutation
+                    # The column "Weighted Cross Mean" is assumed to contain the weighted contributions.
+                    avg = step_df[mask]["Weighted Cross Mean"].sum()
+                    if avg != 0:
+                        low, up = compute_CI(
+                            step_df[mask]["Weighted Cross Mean"],
+                            num_iter=5000,
+                            confidence=95,
+                            seed=62,
+                            mode=ci_mode,
+                        )
+                        # Determine the size (offset) of the confidence interval relative to the mean.
+                        low, up = abs(avg - low), abs(up - avg)
+                    else:
+                        avg, low, up = 0, 0, 0
 
-    # Improve labels and title
-    ax.set_xlabel(
-        "Permutation Feature Importance (PFI)", fontsize=14, fontweight="bold"
-    )
-    ax.set_ylabel("Feature", fontsize=14, fontweight="bold")
-    ax.set_title(
-        "Feature Importances with 95% Confidence Intervals",
-        fontsize=16,
-        fontweight="bold",
-    )
-    for i, patch in enumerate(ax.patches):
-        y_center = patch.get_y() + patch.get_height() / 2.0
-        x_top = patch.get_width() + intervals[1, i]
-        label = f"{patch.get_width():.3f}"
-        ax.text(
-            x_top + 0.005,
-            y_center - 0.005,
-            label,
-            ha="center",
-            va="bottom",
-            color="black",
-            fontsize=12,
-            fontweight="bold",
-        )
-    # Adjust layout
+                    plot_data["Feature"].append(permutation)
+                    plot_data["PFI"].append(avg)
+                    plot_data["CI95_low"].append(low)
+                    plot_data["CI95_up"].append(up)
+
+            # Convert to DataFrame and sort by PFI (descending order).
+            plot_df = pd.DataFrame(plot_data).sort_values("PFI", ascending=False)
+
+            ax = axes[idx]
+            # Create horizontal bar plot.
+            sns.barplot(
+                data=plot_df,
+                y="Feature",
+                x="PFI",
+                orient="h",
+                hue="Feature",
+                palette="magma_r",
+                edgecolor="black",
+                ax=ax,
+            )
+
+            # Plot the confidence intervals.
+            intervals = np.array([plot_df["CI95_low"], plot_df["CI95_up"]])
+            ax.errorbar(
+                y=np.arange(plot_df.shape[0]),
+                x=plot_df["PFI"],
+                xerr=intervals,
+                fmt="o",
+                capsize=4,
+                elinewidth=1.5,
+                color="black",
+                alpha=0.8,
+            )
+
+            # Set axis labels and title. Extract step name from the filename.
+            step_name = os.path.basename(file).split("_permutation_details.csv")[0]
+            ax.set_xlabel(
+                "Permutation Feature Importance (PFI)", fontsize=14, fontweight="bold"
+            )
+            ax.set_ylabel("Feature", fontsize=14, fontweight="bold")
+            ax.set_title(
+                f"PFI with 95% CI - {step_name}", fontsize=16, fontweight="bold"
+            )
+
+            # Annotate each bar with its PFI value.
+            for i, patch in enumerate(ax.patches):
+                y_center = patch.get_y() + patch.get_height() / 2.0
+                x_top = patch.get_width() + intervals[1, i]
+                label = f"{patch.get_width():.3f}"
+                ax.text(
+                    x_top + 0.005,
+                    y_center - 0.005,
+                    label,
+                    ha="center",
+                    va="bottom",
+                    color="black",
+                    fontsize=12,
+                    fontweight="bold",
+                )
+        except Exception as e:
+            print(f"An error occurred at step {idx + 1}")
+            print(e)
+
     plt.tight_layout()
     if save_path is not None:
         if not save_path.endswith(".pdf"):
@@ -986,156 +1006,192 @@ def plot_native_feature_selection(
 
 def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=False):
     """
-    Plots feature engineering results, including Permutation Feature Importance (PFI)
-    with confidence intervals, and a heatmap of RMSE, MAE, and PFI.
+    Plots feature engineering results for each step_i file found in the given folder.
+    For each file, the function generates:
+    1. A bar plot for the top 10 features sorted by PFI (Permutation Feature Importance),
+       with error bars for 95% confidence intervals.
+    2. A heatmap displaying RMSE, MAE, and PFI across all features.
 
     Parameters:
-    - path_df (str, optional): Path to CSV file containing feature engineering results.
-    - ci_mode (str): Mode for computing confidence intervals (default: "t").
-
-    The function generates:
-    1. A bar plot for the top 10 features sorted by PFI, with error bars for CI95.
-    2. A heatmap displaying RMSE, MAE, and PFI across all features.
+    - path_df (str, optional): Either a path to a specific CSV file or a folder containing
+      step_i CSV files. If None, defaults to "./Results/feature_engineering/".
+    - ci_mode (str): Mode for computing confidence intervals (default: "bca").
+    - save_path (str, optional): Base path (without extension) to save the plots as PDF.
+      The step identifier is appended to the filename.
+    - show (bool): Whether to display the plots.
     """
-
-    # Load results
+    # Determine if we are given a folder or a single file.
     if path_df is None:
-        results = pd.read_csv(
-            "./Results/feature_engineering/step_1_LGBMRegressor_controled_homology_permutation_details.csv"
-        )
+        folder = "./Results/feature_engineering/"
+    elif os.path.isdir(path_df):
+        folder = path_df
     else:
-        results = pd.read_csv(path_df)
+        folder = None
 
-    # Initialize dictionary to store feature importance data
-    plot_df = {
-        "Feature": [],
-        "RMSE": [],
-        "MAE": [],
-        "PFI": [],
-        "CI95_low": [],
-        "CI95_up": [],
-    }
-
-    # Compute metrics and Confidence Intervals for each feature permutation
-    for permutation in pd.unique(results["Permutation"]):
-        if permutation != "No Permutation":
-            mask = results["Permutation"] == permutation
-            rmse = results[mask]["RMSE"].mean()
-            mae = results[mask]["MAE"].mean()
-            avg = results[mask]["diff_RMSE"].mean()
-
-            if avg != 0:
-                low, up = compute_CI(
-                    results[mask]["diff_RMSE"],
-                    num_iter=5000,
-                    confidence=95,
-                    seed=62,
-                    mode=ci_mode,
-                )
-                # Specify the size not the absolute values of the CI
-                low, up = abs(avg - low), abs(up - avg)
-            else:
-                avg, low, up = 0, 0, 0
-
-            plot_df["Feature"].append(permutation)
-            plot_df["RMSE"].append(rmse)
-            plot_df["MAE"].append(mae)
-            plot_df["PFI"].append(avg)
-            plot_df["CI95_low"].append(low)
-            plot_df["CI95_up"].append(up)
-
-    # Convert to DataFrame and sort by PFI
-    plot_df = pd.DataFrame(plot_df).sort_values("PFI", ascending=False)
-
-    # Select top 10 features
-    top_features = plot_df.iloc[:10]
-
-    # Set seaborn theme for clean visualization
-    sns.set_theme(style="whitegrid")
-
-    # Create bar plot
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(
-        data=top_features,
-        y="Feature",
-        x="PFI",
-        orient="h",
-        palette="magma_r",  # High-contrast perceptually uniform colormap
-        edgecolor="black",
-    )
-
-    # Confidence Interval error bars
-    intervals = np.array([top_features["CI95_low"], top_features["CI95_up"]])
-    ax.errorbar(
-        y=np.arange(top_features.shape[0]),
-        x=top_features["PFI"],
-        xerr=intervals,
-        fmt="o",
-        capsize=4,
-        elinewidth=1.5,
-        color="black",
-        alpha=0.8,
-    )
-    for i, patch in enumerate(ax.patches):
-        y_center = patch.get_y() + patch.get_height() / 2.0
-        x_top = patch.get_width() + intervals[1, i]
-        label = f"{patch.get_width():.3f}"
-        ax.text(
-            x_top + 0.005,
-            y_center - 0.002,
-            label,
-            ha="center",
-            va="bottom",
-            color="black",
-            fontsize=12,
-            fontweight="bold",
+    if folder is not None:
+        # Look for step_i files in the folder.
+        file_pattern = os.path.join(
+            folder, "step_*_LGBMRegressor_controled_homology_permutation_details.csv"
         )
-    # Improve labels and title
-    ax.set_xlabel(
-        "Permutation Feature Importance (PFI)", fontsize=14, fontweight="bold"
-    )
-    ax.set_ylabel("Feature", fontsize=14, fontweight="bold")
-    ax.set_title(
-        "Top 10 Feature Importances with Confidence Intervals",
-        fontsize=16,
-        fontweight="bold",
-    )
+        file_list = sorted(glob.glob(file_pattern))
+    else:
+        file_list = [path_df]
 
-    # Adjust layout and show plot
-    plt.tight_layout()
-    if save_path is not None:
-        if not save_path.endswith(".pdf"):
-            save_path_bis = save_path + "_top.pdf"
-            plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
-    if show:
-        plt.show()
+    if not file_list:
+        print("No step files found in the specified path.")
+        return
 
-    # Set feature names as index for heatmap
-    plot_df.set_index("Feature", inplace=True)
-    plot_df.drop(index="prod_II_III", inplace=True)
-    plot_df.drop(index="prod_I_III", inplace=True)
-    plot_df.drop(index="prod_I_II", inplace=True)
+    # Process each step_i file.
+    for idx, file in enumerate(file_list):
+        try:
+            # Load results from the current step file.
+            results = pd.read_csv(file)
 
-    # Create heatmap
-    plt.figure(figsize=(12, 26))
-    sns.heatmap(
-        plot_df[["PFI", "CI95_low", "CI95_up"]],
-        cmap="mako",  # Better contrast for metric comparison
-        annot=True,
-        fmt=".3f",
-        linewidths=0.5,
-        cbar_kws={"shrink": 0.75},
-    )
+            # Initialize dictionary to store feature metrics.
+            plot_data = {
+                "Feature": [],
+                "RMSE": [],
+                "MAE": [],
+                "PFI": [],
+                "CI95_low": [],
+                "CI95_up": [],
+            }
 
-    # Heatmap title
-    plt.title("Feature Engineering Metrics Heatmap", fontsize=16, fontweight="bold")
-    plt.tight_layout()
-    if save_path is not None:
-        if not save_path.endswith(".pdf"):
-            save_path_bis = save_path + "_heat.pdf"
-        plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
-    if show:
-        plt.show()
+            # Compute metrics and confidence intervals for each candidate feature.
+            # Here we loop over unique permutations (ignoring the "No Permutation" baseline).
+            for permutation in pd.unique(results["Permutation"]):
+                if permutation != "No Permutation":
+                    mask = results["Permutation"] == permutation
+                    rmse = results[mask]["RMSE"].mean()
+                    mae = results[mask]["MAE"].mean()
+                    avg = results[mask]["diff_RMSE"].mean()
+
+                    if avg != 0:
+                        low, up = compute_CI(
+                            results[mask]["diff_RMSE"],
+                            num_iter=5000,
+                            confidence=95,
+                            seed=62,
+                            mode=ci_mode,
+                        )
+                        # Specify the size (offset) of the CI relative to the mean.
+                        low, up = abs(avg - low), abs(up - avg)
+                    else:
+                        avg, low, up = 0, 0, 0
+
+                    plot_data["Feature"].append(permutation)
+                    plot_data["RMSE"].append(rmse)
+                    plot_data["MAE"].append(mae)
+                    plot_data["PFI"].append(avg)
+                    plot_data["CI95_low"].append(low)
+                    plot_data["CI95_up"].append(up)
+
+            # Convert dictionary to DataFrame and sort by PFI.
+            plot_df = pd.DataFrame(plot_data).sort_values("PFI", ascending=False)
+
+            # -----------------------
+            # Bar Plot for Top 10 Features
+            # -----------------------
+            top_features = plot_df.iloc[:10]
+
+            sns.set_theme(style="whitegrid")
+            fig_bar, ax_bar = plt.subplots(figsize=(10, 6))
+            sns.barplot(
+                data=top_features,
+                y="Feature",
+                x="PFI",
+                orient="h",
+                palette="magma_r",
+                edgecolor="black",
+                ax=ax_bar,
+            )
+            # Add error bars for confidence intervals.
+            intervals = np.array([top_features["CI95_low"], top_features["CI95_up"]])
+            ax_bar.errorbar(
+                y=np.arange(top_features.shape[0]),
+                x=top_features["PFI"],
+                xerr=intervals,
+                fmt="o",
+                capsize=4,
+                elinewidth=1.5,
+                color="black",
+                alpha=0.8,
+            )
+            # Annotate each bar with its PFI value.
+            for i, patch in enumerate(ax_bar.patches):
+                y_center = patch.get_y() + patch.get_height() / 2.0
+                x_top = patch.get_width() + intervals[1, i]
+                label = f"{patch.get_width():.3f}"
+                ax_bar.text(
+                    x_top + 0.005,
+                    y_center - 0.002,
+                    label,
+                    ha="center",
+                    va="bottom",
+                    color="black",
+                    fontsize=12,
+                    fontweight="bold",
+                )
+            ax_bar.set_xlabel(
+                "Permutation Feature Importance (PFI)", fontsize=14, fontweight="bold"
+            )
+            ax_bar.set_ylabel("Feature", fontsize=14, fontweight="bold")
+            step_name = os.path.basename(file).split("_permutation_details.csv")[0]
+            ax_bar.set_title(
+                f"Top 10 Feature Importances with 95% CI - {step_name}",
+                fontsize=16,
+                fontweight="bold",
+            )
+            fig_bar.tight_layout()
+            if save_path is not None:
+                save_bar = (
+                    f"{save_path}_{step_name}_top.pdf"
+                    if not save_path.endswith(".pdf")
+                    else f"{save_path}_{step_name}_top"
+                )
+                fig_bar.savefig(save_bar, format="pdf", bbox_inches="tight")
+            if show:
+                plt.show()
+            plt.close(fig_bar)
+
+            # -----------------------
+            # Heatmap for All Features
+            # -----------------------
+            # Set feature names as index.
+            plot_df.set_index("Feature", inplace=True)
+            # Drop features if present.
+            for drop_feature in ["prod_II_III", "prod_I_III", "prod_I_II"]:
+                if drop_feature in plot_df.index:
+                    plot_df.drop(index=drop_feature, inplace=True)
+            fig_heat = plt.figure(figsize=(12, 26))
+            sns.heatmap(
+                plot_df[["PFI", "CI95_low", "CI95_up"]],
+                cmap="mako",
+                annot=True,
+                fmt=".3f",
+                linewidths=0.5,
+                cbar_kws={"shrink": 0.75},
+            )
+            plt.title(
+                f"Feature Engineering Metrics Heatmap - {step_name}",
+                fontsize=16,
+                fontweight="bold",
+            )
+            plt.tight_layout()
+            if save_path is not None:
+                save_heat = (
+                    f"{save_path}_{step_name}_heat.pdf"
+                    if not save_path.endswith(".pdf")
+                    else f"{save_path}_{step_name}_heat"
+                )
+                fig_heat.savefig(save_heat, format="pdf", bbox_inches="tight")
+            if show:
+                plt.show()
+            plt.close(fig_heat)
+
+        except Exception as e:
+            print(f"An error occurred at step {idx + 1} (file: {file})")
+            print(e)
 
 
 # Refaire sans les produits entre Modalités de modele, remplace les ratios par les soustractions,
@@ -1536,7 +1592,7 @@ def load_lgbm_model(path_model_folder=None, path_df=None, ho_name="1234_x_S.en")
     model = lgb.Booster(model_file=model_file)
 
     if path_df is None:
-        method_df = pd.read_csv("./Data/Datasets/combinatoric_COI.csv")
+        method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
     else:
         method_df = pd.read_csv(path_df)
 
@@ -1622,7 +1678,7 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     memory = {}
     for ho_name in results["Evaluation"]:
         try:
-            method_df = pd.read_csv("./Data/Datasets/combinatoric_COI.csv")
+            method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
 
             file_list = os.listdir("./Results/models/")
             file_list = ["./Results/models/" + file for file in file_list]
@@ -1639,7 +1695,7 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
         except Exception as e:
             Warning("Using pickling failed, trying load_lgbm function..")
             pipeline, method_df = load_lgbm_model(
-                "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
+                "./Results/models/", "./Data/Datasets/fe_combinatoric_COI.csv", ho_name
             )
             X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
             pipeline[:-1].fit(X_train)
@@ -1925,7 +1981,7 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
             ho_name = df["Evaluation"].iloc[row]
 
             try:
-                method_df = pd.read_csv("./Data/Datasets/combinatoric_COI.csv")
+                method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
 
                 file_list = os.listdir("./Results/models/")
                 file_list = ["./Results/models/" + file for file in file_list]
@@ -1942,7 +1998,9 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
             except Exception as e:
                 Warning("Using pickling failed, trying load_lgbm function..")
                 pipeline, method_df = load_lgbm_model(
-                    "./Results/models/", "./Data/Datasets/combinatoric_COI.csv", ho_name
+                    "./Results/models/",
+                    "./Data/Datasets/fe_combinatoric_COI.csv",
+                    ho_name,
                 )
                 X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
                 pipeline[:-1].fit(X_train)
@@ -2099,7 +2157,7 @@ def plot_global_SHAP(
 ):
     try:
         if path_df is None:
-            method_df = pd.read_csv("./Data/Datasets/combinatoric_COI.csv")
+            method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
         else:
             method_df = pd.read_csv(path_df)
 
@@ -2158,7 +2216,7 @@ def plot_local_SHAP(
 ):
     try:
         if path_df is None:
-            method_df = pd.read_csv("./Data/Datasets/combinatoric_COI.csv")
+            method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
         else:
             method_df = pd.read_csv(path_df)
 
@@ -2497,7 +2555,7 @@ if __name__ == "__main__":
             "Running plot_native_feature_selection and saving to ./Plots/native_feature_selection.pdf"
         )
         plot_native_feature_selection(
-            "./Results/native_feature_selection/step_1_LGBMRegressor_controled_homology_permutation_details.csv",
+            "./Results/native_feature_selection/",  # step_1_LGBMRegressor_controled_homology_permutation_details.csv",
             ci_mode="bca",
             save_path="./Plots/native_feature_selection.pdf",
             show=False,
@@ -2507,7 +2565,7 @@ if __name__ == "__main__":
             "Running plot_feature_engineering and saving to ./Plots/feature_engineering.pdf"
         )
         plot_feature_engineering(
-            "./Results/feature_engineering/step_1_LGBMRegressor_controled_homology_permutation_details.csv",
+            "./Results/feature_engineering/",  # step_1_LGBMRegressor_controled_homology_permutation_details.csv",
             ci_mode="bca",
             save_path="./Plots/feature_engineering",
             show=False,

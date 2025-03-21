@@ -57,7 +57,7 @@ summary_preprocess_selection(
 
 
 plot_native_feature_selection(
-    "./Results/native_feature_selection/step_1_LGBMRegressor_controled_homology_permutation_details.csv",
+    "./Results/native_feature_selection/",  # step_1_LGBMRegressor_controled_homology_permutation_details.csv",
     ci_mode="bca",
     save_path="./Plots/local/native_feature_selection.pdf",
     show=False,
@@ -65,7 +65,7 @@ plot_native_feature_selection(
 
 
 plot_feature_engineering(
-    "./Results/feature_engineering/step_1_LGBMRegressor_controled_homology_permutation_details.csv",
+    "./Results/feature_engineering/",  # step_1_LGBMRegressor_controled_homology_permutation_details.csv",
     ci_mode="bca",
     save_path="./Plots/local/feature_engineering",
     show=False,

@@ -367,7 +367,7 @@ def select_features(
     selection_strategy="permutation",
     ho_folder_path="Data/Datasets",
     suffix="_hold_outs.pkl",
-    mode="controled_homology",
+    mode="permutation",
     target=["Score"],
     candidates=[None],
     remove_cols=[None],
@@ -380,16 +380,14 @@ def select_features(
     num_cols=None,
     cat_cols=None,
 ):
-    # Check that candidates have been provided.
+    # Ensure candidate features are provided.
     assert candidates != [None], (
         "You must specify feature candidates for feature selection"
     )
 
     os.makedirs(save_path, exist_ok=True)
-    step_list = []
-
     if selection_strategy == "permutation":
-        # Build a pipeline that includes feature permutation for importance computation.
+        # Build a pipeline that incorporates feature permutation for importance computation.
         fe_estimator = create_pipeline(
             num_cols,
             cat_cols,
@@ -419,17 +417,24 @@ def select_features(
         # -------------------------------
         # PERMUTATION FEATURE IMPORTANCE
         # -------------------------------
-        # For each group defined by [Evaluation, Model, Method]:
-        #   - Identify the baseline performance (where Permutation == "No Permutation").
-        #   - For each candidate feature (where Permutation != "No Permutation"), compute:
-        #       diff_RMSE = RMSE(permuted) - RMSE(baseline)
-        #       diff_MAE  = MAE(permuted)  - MAE(baseline)
-        # Then, compute the weighted RMSE and weighted MAE per candidate feature,
-        # and finally compute the weighted cross mean as the average of the two.
+        # For each evaluation group, compute differences relative to the baseline ("No Permutation").
         diff_list = []
         group_cols = ["Evaluation", "Model", "Method"]
+
+        # Retrieve cross mean metric for the baseline
+        base_df = results_df[results_df["Permutation"] == "No Permutation"]
+        test_size_vector = base_df["n_samples"].copy()
+        N = base_df["n_samples"].sum()
+        w_rmse = (base_df["RMSE"] * test_size_vector / N).sum()
+        w_mae = (base_df["MAE"] * test_size_vector / N).sum()
+        cross_mean = 0.5 * (w_rmse + w_mae)
+
+        weight_dict = {
+            ho: base_df[base_df["Evaluation"] == ho]["n_samples"] / N
+            for ho in pd.unique(results_df["Evaluation"])
+        }
         for name, group in results_df.groupby(group_cols):
-            # Get the baseline row (no permutation) for this group.
+            # Retrieve the baseline row (without any permutation).
             baseline = group[group["Permutation"] == "No Permutation"]
             if baseline.empty:
                 continue
@@ -437,63 +442,68 @@ def select_features(
             baseline_rmse = baseline_row["RMSE"]
             baseline_mae = baseline_row["MAE"]
 
-            # Process rows with a candidate feature permutation.
+            # Process candidate feature permutations (excluding the baseline row).
             permuted = group[group["Permutation"] != "No Permutation"].copy()
+            # print(permuted)
             if permuted.empty:
                 continue
             permuted["diff_RMSE"] = permuted["RMSE"] - baseline_rmse
             permuted["diff_MAE"] = permuted["MAE"] - baseline_mae
-            permuted["Weighted diff_RMSE"] = (
-                permuted["diff_RMSE"]
-                * permuted["n_samples"]
-                / np.sum(permuted["n_samples"])
-            )
-            permuted["Weighted diff_MAE"] = (
-                permuted["diff_MAE"]
-                * permuted["n_samples"]
-                / np.sum(permuted["n_samples"])
-            )
+
+            weight = weight_dict[pd.unique(group["Evaluation"])[0]]
+            permuted["Weighted diff_RMSE"] = (permuted["RMSE"] - baseline_rmse) * weight
+            permuted["Weighted diff_MAE"] = (permuted["MAE"] - baseline_rmse) * weight
+
+            permuted["Weighted RMSE"] = permuted["RMSE"] * weight
+            permuted["Weighted MAE"] = permuted["MAE"] * weight
+
+            # The weighted cross mean is the average of the weighted differences.
             permuted["Weighted Cross Mean"] = 0.5 * (
-                permuted["Weighted diff_MAE"] + permuted["Weighted diff_RMSE"]
+                permuted["Weighted diff_RMSE"] + permuted["Weighted diff_MAE"]
             )
             diff_list.append(permuted)
 
         if len(diff_list) == 0:
             print("No permutation differences computed.")
-            return None, None
+            return None, None, None
 
         diff_df = pd.concat(diff_list, axis=0)
 
-        # Compute weighted RMSE and weighted MAE per candidate feature.
+        # Aggregate the differences per candidate feature.
         summary_perm = (
             diff_df.groupby("Permutation")
             .apply(
                 lambda g: pd.Series(
                     {
-                        "Weighted RMSE": np.sum(g["Weighted diff_RMSE"]),
-                        "Weighted MAE": np.sum(g["Weighted diff_MAE"]),
-                        "Unweighted RMSE": g["diff_RMSE"].mean(),
-                        "Unweighted MAE": g["diff_MAE"].mean(),
+                        "Weighted diff_RMSE": np.sum(g["Weighted diff_RMSE"]),
+                        "Weighted diff_MAE": np.sum(g["Weighted diff_MAE"]),
+                        "Weighted RMSE": np.sum(g["Weighted RMSE"]),
+                        "Weighted MAE": np.sum(g["Weighted MAE"]),
+                        "Unweighted diff_RMSE": g["diff_RMSE"].mean(),
+                        "Unweighted diff_MAE": g["diff_MAE"].mean(),
                     }
                 )
             )
             .reset_index()
         )
-
-        # Compute weighted cross mean as the average of weighted RMSE and weighted MAE.
+        # Not the PFI cross mean but the actual cross mean
         summary_perm["Weighted Cross Mean"] = (
             summary_perm["Weighted RMSE"] + summary_perm["Weighted MAE"]
         ) / 2
 
-        # Select the best permutation candidate based on the lowest weighted cross mean.
-        best_perm_idx = summary_perm["Weighted Cross Mean"].idxmin()
-        best_permutation = summary_perm.loc[best_perm_idx, "Permutation"]
-        best_perm_score = summary_perm.loc[best_perm_idx, "Weighted Cross Mean"]
+        summary_perm["Weighted diff Cross Mean"] = (
+            summary_perm["Weighted diff_RMSE"] + summary_perm["Weighted diff_MAE"]
+        ) / 2
 
-        print("Best permutation feature (weighted cross mean):", best_permutation)
-        print("Best weighted cross mean metric:", best_perm_score)
+        # Select the candidate feature with the lowest PFI
+        best_idx = summary_perm["Weighted diff Cross Mean"].idxmin()
+        feature_to_remove = summary_perm.loc[best_idx, "Permutation"]
+        pfi = summary_perm["Weighted diff Cross Mean"].loc[best_idx]
 
-        # Save the detailed differences and summary CSV files.
+        print(f"Feature with lowest PFI {pfi}:", feature_to_remove)
+        print(f"Weighted cross mean metric with \n{num_cols + cat_cols}:", cross_mean)
+
+        # Save detailed differences and summary CSV files.
         diff_df.to_csv(
             os.path.join(
                 save_path,
@@ -509,100 +519,100 @@ def select_features(
             index=False,
         )
 
-        return best_perm_score, best_permutation
+        return pfi, feature_to_remove, cross_mean
 
-    elif selection_strategy == "lofo":  # Leave One Feature Out
-        for feature in candidates:
-            remove_cols_copy = remove_cols + [feature]
-            num_cols_copy = deepcopy(num_cols)
-            cat_cols_copy = deepcopy(cat_cols)
+    # elif selection_strategy == "lofo":  # Leave One Feature Out
+    #     for feature in candidates:
+    #         remove_cols_copy = remove_cols + [feature]
+    #         num_cols_copy = deepcopy(num_cols)
+    #         cat_cols_copy = deepcopy(cat_cols)
 
-            if feature in num_cols:
-                num_cols_copy.remove(feature)
-            if feature in cat_cols:
-                cat_cols_copy.remove(feature)
+    #         if feature in num_cols:
+    #             num_cols_copy.remove(feature)
+    #         if feature in cat_cols:
+    #             cat_cols_copy.remove(feature)
 
-            print(f"Training without {feature}..")
-            print(f"Num_cols: {num_cols_copy}")
-            print(f"Cat_cols: {cat_cols_copy}")
+    #         print(f"Training without {feature}..")
+    #         print(f"Num_cols: {num_cols_copy}")
+    #         print(f"Cat_cols: {cat_cols_copy}")
 
-            fe_estimator = create_pipeline(
-                num_cols_copy,
-                cat_cols_copy,
-                imputer=imputer,
-                scaler=scaler,
-                estimator=estimator,
-                model_name=estimator_name,
-            )
+    #         fe_estimator = create_pipeline(
+    #             num_cols_copy,
+    #             cat_cols_copy,
+    #             imputer=imputer,
+    #             scaler=scaler,
+    #             estimator=estimator,
+    #             model_name=estimator_name,
+    #         )
 
-            results = evaluate(
-                fe_estimator,
-                estimator_name,
-                dataset_dict,
-                ho_folder_path=ho_folder_path,
-                suffix=suffix,
-                mode=mode,
-                target=target,
-                remove_cols=remove_cols_copy,
-                random_state=random_state,
-                shuffle=shuffle,
-            )
-            results_df = (
-                results if isinstance(results, pd.DataFrame) else pd.DataFrame(results)
-            )
-            results_df["Removed"] = [
-                f"(-) {feature}" for i in range(results_df.shape[0])
-            ]
-            step_list.append(results_df)
+    #         results = evaluate(
+    #             fe_estimator,
+    #             estimator_name,
+    #             dataset_dict,
+    #             ho_folder_path=ho_folder_path,
+    #             suffix=suffix,
+    #             mode=mode,
+    #             target=target,
+    #             remove_cols=remove_cols_copy,
+    #             random_state=random_state,
+    #             shuffle=shuffle,
+    #         )
+    #         results_df = (
+    #             results if isinstance(results, pd.DataFrame) else pd.DataFrame(results)
+    #         )
+    #         results_df["Removed"] = [
+    #             f"(-) {feature}" for i in range(results_df.shape[0])
+    #         ]
+    #         step_list.append(results_df)
 
-            # Remove no longer needed variables to help memory usage.
-            del (
-                results_df,
-                results,
-                fe_estimator,
-                remove_cols_copy,
-                num_cols_copy,
-                cat_cols_copy,
-            )
-            gc.collect()
+    #         # Remove no longer needed variables to help memory usage.
+    #         del (
+    #             results_df,
+    #             results,
+    #             fe_estimator,
+    #             remove_cols_copy,
+    #             num_cols_copy,
+    #             cat_cols_copy,
+    #         )
+    #         gc.collect()
 
-        step_df = pd.concat(step_list, axis=0)
-        # step_df["Cross Mean (RMSE and MAE)"] = np.mean(step_df[["RMSE", "MAE"]], axis=1)
+    #     step_df = pd.concat(step_list, axis=0)
+    #     # step_df["Cross Mean (RMSE and MAE)"] = np.mean(step_df[["RMSE", "MAE"]], axis=1)
 
-        # Compute the weighted cross mean per group using "n_samples" as weights.
-        summary_step = (
-            step_df.groupby("Removed")
-            .apply(
-                lambda g: np.sum(g["RMSE"] * g["n_samples"]) / np.sum(g["n_samples"])
-            )
-            .reset_index(name="Weighted RMSE")
-        )
+    #     # Compute the weighted cross mean per group using "n_samples" as weights.
+    #     summary_step = (
+    #         step_df.groupby("Removed")
+    #         .apply(
+    #             lambda g: np.sum(g["RMSE"] * g["n_samples"]) / np.sum(g["n_samples"])
+    #         )
+    #         .reset_index(name="Weighted RMSE")
+    #     )
 
-        # Compute the unweighted mean.
-        summary_step["Unweighted RMSE"] = (
-            step_df.groupby("Removed")["RMSE"].mean().values
-        )
+    #     # Compute the unweighted mean.
+    #     summary_step["Unweighted RMSE"] = (
+    #         step_df.groupby("Removed")["RMSE"].mean().values
+    #     )
 
-        # Select the best ablation based on the weighted metric.
-        best_ablation = summary_step["Removed"].iloc[
-            summary_step["Weighted RMSE"].idxmin()
-        ]
-        best_ablation_score = summary_step["Weighted RMSE"].min()
+    #     # Select the best ablation based on the weighted metric.
+    #     best_ablation = summary_step["Removed"].iloc[
+    #         summary_step["Weighted RMSE"].idxmin()
+    #     ]
+    #     best_ablation_score = summary_step["Weighted RMSE"].min()
 
-        print(
-            "Best ablation feature (weighted):", best_ablation[4:]
-        )  # Removing "(-) " prefix
-        print("Best weighted metric:", best_ablation_score)
+    #     print(
+    #         "Best ablation feature (weighted):", best_ablation[4:]
+    #     )  # Removing "(-) " prefix
+    #     print("Best weighted metric:", best_ablation_score)
 
-        step_df.to_csv(
-            os.path.join(save_path, f"{step_name}_{estimator_name}_{mode}_results.csv"),
-            index=False,
-        )
-        summary_step.to_csv(
-            os.path.join(
-                save_path, f"{step_name}_summary_{estimator_name}_{mode}_results.csv"
-            ),
-            index=False,
-        )
+    #     step_df.to_csv(
+    #         os.path.join(save_path, f"{step_name}_{estimator_name}_{mode}_results.csv"),
+    #         index=False,
+    #     )
+    #     summary_step.to_csv(
+    #         os.path.join(
+    #             save_path, f"{step_name}_summary_{estimator_name}_{mode}_results.csv"
+    #         ),
+    #         index=False,
+    #     )
 
-        return best_ablation_score, best_ablation[4:]
+    #     return best_ablation_score, best_ablation[4:]
