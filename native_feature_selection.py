@@ -20,7 +20,7 @@ if __name__ == "__main__":
     remove_cols = ["Unnamed: 0", "B_sample_ID", "P_sample_ID", "Bacillus", "Pathogene"]
     num_cols = [
         col
-        for col in df_dict["avg"].columns  # df_dict["combinatoric"].columns
+        for col in df_dict["combinatoric"].columns
         if col not in cat_cols + remove_cols + target
     ]
 
