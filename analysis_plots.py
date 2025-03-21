@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import pickle as pkl
-import os, re, argparse, glob
+import os, re, argparse, glob, traceback
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -120,6 +120,10 @@ def stat_func(data):
     return np.mean(data)
 
 
+def weighted_stat_func(data):
+    return np.sum(data)
+
+
 def compute_CI(
     data, num_iter=5000, confidence=95, seed=None, stat_func=stat_func, mode="bca"
 ):
@@ -224,12 +228,28 @@ def plot_model_selection(
         )
 
     # Compute confidence intervals using compute_CI function
-    ci_data = (
-        results.groupby(["Method", "Model"])
-        .apply(lambda g: pd.Series(compute_CI(g[metric].values, mode="bca")))
-        .rename(columns={0: "ci_low", 1: "ci_up"})
-        .reset_index()
-    )
+    if avg_mode == "weighted":
+        ci_data = (
+            results.groupby(["Method", "Model"])
+            .apply(
+                lambda g: pd.Series(
+                    compute_CI(
+                        g[metric] * g["n_samples"] / np.sum(g["n_samples"]),
+                        mode="bca",
+                        stat_func=weighted_stat_func,
+                    )
+                )
+            )
+            .rename(columns={0: "ci_low", 1: "ci_up"})
+            .reset_index()
+        )
+    else:
+        ci_data = (
+            results.groupby(["Method", "Model"])
+            .apply(lambda g: pd.Series(compute_CI(g[metric].values, mode="bca")))
+            .rename(columns={0: "ci_low", 1: "ci_up"})
+            .reset_index()
+        )
 
     # Merge dataframes
     agg_data = pd.merge(agg_data, ci_data, on=["Method", "Model"])
@@ -427,12 +447,28 @@ def summary_model_selection(
             )
 
         # Compute confidence intervals using compute_CI
-        ci_data = (
-            df.groupby("Model")
-            .apply(lambda g: pd.Series(compute_CI(g[metric].values, mode="bca")))
-            .rename(columns={0: "ci_low", 1: "ci_up"})
-            .reset_index()
-        )
+        if avg_mode == "weighted":
+            ci_data = (
+                results.groupby(["Method", "Model"])
+                .apply(
+                    lambda g: pd.Series(
+                        compute_CI(
+                            g[metric] * g["n_samples"] / np.sum(g["n_samples"]),
+                            mode="bca",
+                            stat_func=weighted_stat_func,
+                        )
+                    )
+                )
+                .rename(columns={0: "ci_low", 1: "ci_up"})
+                .reset_index()
+            )
+        else:
+            ci_data = (
+                results.groupby(["Method", "Model"])
+                .apply(lambda g: pd.Series(compute_CI(g[metric].values, mode="bca")))
+                .rename(columns={0: "ci_low", 1: "ci_up"})
+                .reset_index()
+            )
 
         # Merge dataframes
         grp = pd.merge(grp, ci_data, on=["Model"])
@@ -673,12 +709,28 @@ def summary_preprocess_selection(
                 .reset_index()
             )
         # Compute confidence intervals using compute_CI
-        ci_data = (
-            df.groupby("Model")
-            .apply(lambda g: pd.Series(compute_CI(g[metric].values, mode="bca")))
-            .rename(columns={0: "ci_low", 1: "ci_up"})
-            .reset_index()
-        )
+        if avg_mode == "weighted":
+            ci_data = (
+                results.groupby(["Method", "Model"])
+                .apply(
+                    lambda g: pd.Series(
+                        compute_CI(
+                            g[metric] * g["n_samples"] / np.sum(g["n_samples"]),
+                            mode="bca",
+                            stat_func=weighted_stat_func,
+                        )
+                    )
+                )
+                .rename(columns={0: "ci_low", 1: "ci_up"})
+                .reset_index()
+            )
+        else:
+            ci_data = (
+                results.groupby(["Method", "Model"])
+                .apply(lambda g: pd.Series(compute_CI(g[metric].values, mode="bca")))
+                .rename(columns={0: "ci_low", 1: "ci_up"})
+                .reset_index()
+            )
 
         # Merge dataframes
         grp = pd.merge(grp, ci_data, on=["Model"])
@@ -898,12 +950,12 @@ def plot_native_feature_selection(
     axes = axes.flatten()
 
     sns.set_theme(style="whitegrid")
-
+    # print(file_list)
     for idx, file in enumerate(file_list):
         try:
             # Read the permutation details for the step.
             step_df = pd.read_csv(file)
-
+            # print(step_df.columns)
             # Initialize dictionary to accumulate plotting data.
             plot_data = {"Feature": [], "PFI": [], "CI95_low": [], "CI95_up": []}
 
@@ -913,6 +965,7 @@ def plot_native_feature_selection(
                     mask = step_df["Permutation"] == permutation
                     # The column "Weighted Cross Mean" is assumed to contain the weighted contributions.
                     avg = step_df[mask]["Weighted Cross Mean"].sum()
+                    # print(permutation, avg)
                     if avg != 0:
                         low, up = compute_CI(
                             step_df[mask]["Weighted Cross Mean"],
@@ -920,6 +973,7 @@ def plot_native_feature_selection(
                             confidence=95,
                             seed=62,
                             mode=ci_mode,
+                            stat_func=weighted_stat_func,
                         )
                         # Determine the size (offset) of the confidence interval relative to the mean.
                         low, up = abs(avg - low), abs(up - avg)
@@ -988,6 +1042,7 @@ def plot_native_feature_selection(
         except Exception as e:
             print(f"An error occurred at step {idx + 1}")
             print(e)
+            print(traceback.format_exc())
 
     plt.tight_layout()
     if save_path is not None:
@@ -1045,48 +1100,37 @@ def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=F
     for idx, file in enumerate(file_list):
         try:
             # Load results from the current step file.
-            results = pd.read_csv(file)
+            step_df = pd.read_csv(file)
 
-            # Initialize dictionary to store feature metrics.
-            plot_data = {
-                "Feature": [],
-                "RMSE": [],
-                "MAE": [],
-                "PFI": [],
-                "CI95_low": [],
-                "CI95_up": [],
-            }
+            plot_data = {"Feature": [], "PFI": [], "CI95_low": [], "CI95_up": []}
 
-            # Compute metrics and confidence intervals for each candidate feature.
-            # Here we loop over unique permutations (ignoring the "No Permutation" baseline).
-            for permutation in pd.unique(results["Permutation"]):
+            # Compute PFI and confidence intervals for each candidate feature.
+            for permutation in pd.unique(step_df["Permutation"]):
                 if permutation != "No Permutation":
-                    mask = results["Permutation"] == permutation
-                    rmse = results[mask]["RMSE"].mean()
-                    mae = results[mask]["MAE"].mean()
-                    avg = results[mask]["diff_RMSE"].mean()
-
+                    mask = step_df["Permutation"] == permutation
+                    # The column "Weighted Cross Mean" is assumed to contain the weighted contributions.
+                    avg = step_df[mask]["Weighted Cross Mean"].sum()
+                    # print(permutation, avg)
                     if avg != 0:
                         low, up = compute_CI(
-                            results[mask]["diff_RMSE"],
+                            step_df[mask]["Weighted Cross Mean"],
                             num_iter=5000,
                             confidence=95,
                             seed=62,
                             mode=ci_mode,
+                            stat_func=weighted_stat_func,
                         )
-                        # Specify the size (offset) of the CI relative to the mean.
+                        # Determine the size (offset) of the confidence interval relative to the mean.
                         low, up = abs(avg - low), abs(up - avg)
                     else:
                         avg, low, up = 0, 0, 0
 
                     plot_data["Feature"].append(permutation)
-                    plot_data["RMSE"].append(rmse)
-                    plot_data["MAE"].append(mae)
                     plot_data["PFI"].append(avg)
                     plot_data["CI95_low"].append(low)
                     plot_data["CI95_up"].append(up)
 
-            # Convert dictionary to DataFrame and sort by PFI.
+            # Convert to DataFrame and sort by PFI (descending order).
             plot_df = pd.DataFrame(plot_data).sort_values("PFI", ascending=False)
 
             # -----------------------
@@ -1428,7 +1472,7 @@ def plot_ablation_study(
             plot_df[addon + "RMSE"].append(rmse)
 
             # Compute confidence intervals
-            func = weighted_stat_func if weighted else np.mean
+            func = weighted_stat_func if weighted else stat_func
             # RMSE CI
             low_r, up_r = compute_CI(
                 df[addon + "RMSE"],

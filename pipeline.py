@@ -387,6 +387,8 @@ def select_features(
 
     os.makedirs(save_path, exist_ok=True)
     if selection_strategy == "permutation":
+        print("Starting permutation selection strategy.")
+        print("Creating pipeline with num_cols:", num_cols, "and cat_cols:", cat_cols)
         # Build a pipeline that incorporates feature permutation for importance computation.
         fe_estimator = create_pipeline(
             num_cols,
@@ -396,7 +398,9 @@ def select_features(
             estimator=estimator,
             model_name=estimator_name,
         )
+        print("Pipeline created:", fe_estimator)
 
+        print("Evaluating pipeline using evaluate() function...")
         results = evaluate(
             fe_estimator,
             estimator_name,
@@ -413,61 +417,104 @@ def select_features(
         results_df = (
             results if isinstance(results, pd.DataFrame) else pd.DataFrame(results)
         )
+        print("Results obtained. Shape of results_df:", results_df.shape)
+        print("Results_df head:\n", results_df.head())
 
         # -------------------------------
         # PERMUTATION FEATURE IMPORTANCE
         # -------------------------------
-        # For each evaluation group, compute differences relative to the baseline ("No Permutation").
+        print("Computing permutation feature importance...")
         diff_list = []
         group_cols = ["Evaluation", "Model", "Method"]
+        print("Group columns used:", group_cols)
 
         # Retrieve cross mean metric for the baseline
         base_df = results_df[results_df["Permutation"] == "No Permutation"]
+        print("Base DataFrame (No Permutation) shape:", base_df.shape)
         test_size_vector = base_df["n_samples"].copy()
         N = base_df["n_samples"].sum()
+        print("Total n_samples (N):", N)
         w_rmse = (base_df["RMSE"] * test_size_vector / N).sum()
         w_mae = (base_df["MAE"] * test_size_vector / N).sum()
         cross_mean = 0.5 * (w_rmse + w_mae)
+        print("Computed weighted RMSE:", w_rmse, "Weighted MAE:", w_mae)
+        print("Baseline cross mean metric:", cross_mean)
 
         weight_dict = {
             ho: base_df[base_df["Evaluation"] == ho]["n_samples"] / N
             for ho in pd.unique(results_df["Evaluation"])
         }
+        print("Weight dictionary for each Evaluation:", weight_dict)
+
         for name, group in results_df.groupby(group_cols):
+            print("Processing group:", name)
             # Retrieve the baseline row (without any permutation).
             baseline = group[group["Permutation"] == "No Permutation"]
+            print("Baseline for current group shape:", baseline.shape)
             if baseline.empty:
+                print("Baseline is empty for group:", name, "Skipping group.")
                 continue
             baseline_row = baseline.iloc[0]
             baseline_rmse = baseline_row["RMSE"]
             baseline_mae = baseline_row["MAE"]
+            print("Baseline RMSE:", baseline_rmse, "Baseline MAE:", baseline_mae)
 
             # Process candidate feature permutations (excluding the baseline row).
             permuted = group[group["Permutation"] != "No Permutation"].copy()
-            # print(permuted)
+            print("Permuted candidates shape:", permuted.shape)
             if permuted.empty:
+                print("No permuted candidates found for group:", name)
                 continue
+
             permuted["diff_RMSE"] = permuted["RMSE"] - baseline_rmse
             permuted["diff_MAE"] = permuted["MAE"] - baseline_mae
+            print(
+                "Computed diff_RMSE and diff_MAE for current group.\n",
+                permuted[["RMSE", "diff_RMSE", "MAE", "diff_MAE"]].head(),
+            )
 
-            weight = weight_dict[pd.unique(group["Evaluation"])[0]]
+            eval_key = pd.unique(group["Evaluation"])[0]
+            weight = weight_dict[eval_key]
+            print(
+                "Using weight for Evaluation",
+                eval_key,
+                ":",
+                weight.head() if hasattr(weight, "head") else weight,
+            )
+
             permuted["Weighted diff_RMSE"] = (permuted["RMSE"] - baseline_rmse) * weight
-            permuted["Weighted diff_MAE"] = (permuted["MAE"] - baseline_rmse) * weight
+            permuted["Weighted diff_MAE"] = (permuted["MAE"] - baseline_mae) * weight
+            print(
+                "Weighted diff_RMSE and diff_MAE computed:\n",
+                permuted[["Weighted diff_RMSE", "Weighted diff_MAE"]].head(),
+            )
 
             permuted["Weighted RMSE"] = permuted["RMSE"] * weight
             permuted["Weighted MAE"] = permuted["MAE"] * weight
+            print(
+                "Weighted RMSE and Weighted MAE computed:\n",
+                permuted[["Weighted RMSE", "Weighted MAE"]].head(),
+            )
 
             # The weighted cross mean is the average of the weighted differences.
             permuted["Weighted Cross Mean"] = 0.5 * (
                 permuted["Weighted diff_RMSE"] + permuted["Weighted diff_MAE"]
             )
+            print(
+                "Weighted Cross Mean computed:\n",
+                permuted[["Weighted Cross Mean"]].head(),
+            )
+
             diff_list.append(permuted)
+            print("Appended current group's permuted data to diff_list.")
 
         if len(diff_list) == 0:
             print("No permutation differences computed.")
             return None, None, None
 
         diff_df = pd.concat(diff_list, axis=0)
+        print("Concatenated diff_list into diff_df. Shape of diff_df:", diff_df.shape)
+        print("diff_df head:\n", diff_df.head())
 
         # Aggregate the differences per candidate feature.
         summary_perm = (
@@ -486,7 +533,9 @@ def select_features(
             )
             .reset_index()
         )
-        # Not the PFI cross mean but the actual cross mean
+        print("Aggregated summary_perm:\n", summary_perm.head())
+
+        # Not the PFI cross mean but the actual cross mean for the summary
         summary_perm["Weighted Cross Mean"] = (
             summary_perm["Weighted RMSE"] + summary_perm["Weighted MAE"]
         ) / 2
@@ -495,29 +544,32 @@ def select_features(
             summary_perm["Weighted diff_RMSE"] + summary_perm["Weighted diff_MAE"]
         ) / 2
 
+        print(
+            "Updated summary_perm with Weighted Cross Mean and Weighted diff Cross Mean:\n",
+            summary_perm.head(),
+        )
+
         # Select the candidate feature with the lowest PFI
         best_idx = summary_perm["Weighted diff Cross Mean"].idxmin()
         feature_to_remove = summary_perm.loc[best_idx, "Permutation"]
         pfi = summary_perm["Weighted diff Cross Mean"].loc[best_idx]
 
         print(f"Feature with lowest PFI {pfi}:", feature_to_remove)
-        print(f"Weighted cross mean metric with \n{num_cols + cat_cols}:", cross_mean)
+        print("Weighted cross mean metric for baseline (all features):", cross_mean)
+        print("Complete summary_perm:\n", summary_perm)
 
         # Save detailed differences and summary CSV files.
-        diff_df.to_csv(
-            os.path.join(
-                save_path,
-                f"{step_name}_{estimator_name}_{mode}_permutation_details.csv",
-            ),
-            index=False,
+        details_path = os.path.join(
+            save_path, f"{step_name}_{estimator_name}_{mode}_permutation_details.csv"
         )
-        summary_perm.to_csv(
-            os.path.join(
-                save_path,
-                f"{step_name}_summary_{estimator_name}_{mode}_permutation_results.csv",
-            ),
-            index=False,
+        summary_path = os.path.join(
+            save_path,
+            f"{step_name}_summary_{estimator_name}_{mode}_permutation_results.csv",
         )
+        print("Saving diff_df to:", details_path)
+        diff_df.to_csv(details_path, index=False)
+        print("Saving summary_perm to:", summary_path)
+        summary_perm.to_csv(summary_path, index=False)
 
         return pfi, feature_to_remove, cross_mean
 

@@ -130,7 +130,10 @@ if __name__ == "__main__":
         # Stop if the error (PFI/cross mean) increased compared to the previous iteration.
         if i == 0:
             previous_metric = cross_mean_metric
-        if cross_mean_metric >= previous_metric:
+        if cross_mean_metric > previous_metric:
+            # Baseline will be the error when rmeoving last feature
+            # so if error was increased, removing the last feature was a bad idea
+            memory.pop(-1)
             break
 
         i += 1
