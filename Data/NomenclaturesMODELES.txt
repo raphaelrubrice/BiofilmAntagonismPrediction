@@ -1,3 +1,0 @@
-I = Co-inoculation 24h
-II = Recrutement 0h
-III = Recrutement 24h
