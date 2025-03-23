@@ -44,6 +44,7 @@ if __name__ == "__main__":
     candidates = num_cols + cat_cols
     memory = []
     remove_dict = {}
+    last_to_remove = []
     # When running parallel evaluation, must pass the path not the actual csv
     # df_dict = {"combinatoric": "Data/Datasets/combinatoric_COI.csv"}
     while len(candidates) > 1:
@@ -63,6 +64,7 @@ if __name__ == "__main__":
 
         # Call the feature selection function.
         # It returns: lowest PFI (weighted cross mean), the feature name, and the cross mean.
+        last_to_remove = list(remove_dict.keys())
         remove_dict, cross_mean_metric = select_features(
             estimator,
             estimator_name,
@@ -82,9 +84,9 @@ if __name__ == "__main__":
             num_cols=num_cols,
             cat_cols=cat_cols,
             parallel=True,
-            n_jobs_outer=8,
+            n_jobs_outer=12,
             n_jobs_model=1,
-            batch_size=8,
+            batch_size=12,
         )
 
         print("*********")
@@ -99,7 +101,8 @@ if __name__ == "__main__":
         if cross_mean_metric > previous_metric:
             # Baseline will be the error when rmeoving last feature
             # so if error was increased, removing the last feature was a bad idea
-            memory.pop(-1)
+            for feature in last_to_remove:
+                memory.remove(feature)
             break
 
         i += 1

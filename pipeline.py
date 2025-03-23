@@ -691,9 +691,13 @@ def select_features(
 
         mask = summary_perm["Weighted diff Cross Mean"] < tol
 
-        features_to_remove = summary_perm[mask]["Permutation"]
-        pfis = summary_perm[mask]["Weighted diff Cross Mean"]
-
+        if np.sum(mask) > 0:
+            features_to_remove = summary_perm[mask]["Permutation"]
+            pfis = list(summary_perm[mask]["Weighted diff Cross Mean"])
+        else:
+            best_idx = summary_perm["Weighted diff Cross Mean"].idxmin()
+            features_to_remove = [summary_perm.loc[best_idx, "Permutation"]]
+            pfis = [summary_perm["Weighted diff Cross Mean"].loc[best_idx]]
         remove_dict = {feature: pfis[i] for i, feature in enumerate(features_to_remove)}
 
         details_path = os.path.join(

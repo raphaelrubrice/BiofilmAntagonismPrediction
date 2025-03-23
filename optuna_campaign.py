@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import pickle as pkl
-import os, gc
+import os, gc, re
 import cupy as cp
 
 from lightgbm import LGBMRegressor
@@ -16,32 +16,32 @@ df_dict = {"combinatoric": combinatoric_df}
 
 target = ["Score"]
 cat_cols = ["Modele"]
-remove_cols = ["Unnamed: 0", "B_sample_ID", "P_sample_ID", "Bacillus", "Pathogene"]
+remove_cols = ["Unnamed: 0", 'Unnamed: 0.1', "B_sample_ID", "P_sample_ID", "Bacillus", "Pathogene"]
 num_cols = [
     col
     for col in df_dict["combinatoric"].columns
     if col not in cat_cols + remove_cols + target
 ]
 
+print(combinatoric_df.columns)
 
 def objective(trial):
     param = {
         "objective": "regression",
         "verbosity": -1,
         "boosting_type": "gbdt",
+        "n_jobs": 1,
         "n_estimators": trial.suggest_int("n_estimators", 100, 1000, step=10),
         "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 10.0, log=True),
         "lambda_l2": trial.suggest_float("lambda_l2", 1e-8, 10.0, log=True),
         "num_leaves": trial.suggest_int("num_leaves", 2, 64),
-        "max_depth": trial.suggest_int("max_depth", 2, 15),
         "feature_fraction": trial.suggest_float("feature_fraction", 0.4, 1.0),
         "bagging_fraction": trial.suggest_float("bagging_fraction", 0.4, 1.0),
-        "bagging_freq": trial.suggest_int("bagging_freq", 1, 10),
+        "bagging_freq": trial.suggest_int("bagging_freq", 0, 10),
         "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
         "random_state": 62,
         "gpu_use_dp": False,
         "tree_learner": "serial",
-        "device": "cuda",
         "verbose_eval": False,
         "metric": trial.suggest_categorical(
             "metric", ["l1", "l2", "huber", "quantile"]
@@ -70,9 +70,9 @@ def objective(trial):
         random_state=62,
         shuffle=False,
         parallel=True,
-        n_jobs_outer=6,
+        n_jobs_outer=12,
         n_jobs_model=1,
-        batch_size=6,
+        batch_size=12,
         temp_folder="./temp_results",
     )
 
@@ -109,3 +109,4 @@ if __name__ == "__main__":
     os.makedirs("./Results/optuna_campaign/", exist_ok=True)
     with open("./Results/optuna_campaign/optuna_study.pkl", "wb") as f:
         pkl.dump(study, f)
+    

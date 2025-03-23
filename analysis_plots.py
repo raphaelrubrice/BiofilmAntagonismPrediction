@@ -322,7 +322,7 @@ def plot_model_selection(
         fontweight="bold",
     )
     ax.set_xlabel("Model", fontsize=14, fontweight="bold")
-    ax.set_ylabel(metric, fontsize=14, fontweight="bold")
+    ax.set_ylabel(metric + " (Lower is better)", fontsize=14, fontweight="bold")
 
     # Create a custom legend entry for the overall best line
     handles, labels = ax.get_legend_handles_labels()
@@ -875,7 +875,7 @@ def summary_preprocess_selection(
         fontweight="bold",
     )
     ax.set_ylabel("Preprocessing", fontsize=14, fontweight="bold")
-    ax.set_xlabel(metric, fontsize=9, fontweight="bold")
+    ax.set_xlabel(metric + " (Lower is better)", fontsize=9, fontweight="bold")
 
     # Positionnement et étiquetage de l'axe des y
     ax.set_yticks(range(len(available_models)))
@@ -935,9 +935,13 @@ def plot_native_feature_selection(
 
     if folder is not None:
         # Look for step_i files in the folder.
-        file_pattern = os.path.join(folder, "step_*_permutation_details.csv")
+        file_pattern = os.path.join(
+            folder, "step_*_permutation_permutation_details.csv"
+        )
         file_list = sorted(glob.glob(file_pattern))
-        summary_pattern = os.path.join(folder, "step_*_permutation_results.csv")
+        summary_pattern = os.path.join(
+            folder, "step_*_permutation_permutation_results.csv"
+        )
         summaries = sorted(glob.glob(summary_pattern))
     else:
         file_list = [path_df]
@@ -1028,11 +1032,13 @@ def plot_native_feature_selection(
             # Set axis labels and title. Extract step name from the filename.
             step_name = os.path.basename(file).split("_permutation_details.csv")[0]
             ax.set_xlabel(
-                "Permutation Feature Importance (PFI)", fontsize=14, fontweight="bold"
+                "Permutation Feature Importance (PFI, Higher is better)",
+                fontsize=14,
+                fontweight="bold",
             )
             ax.set_ylabel("Feature", fontsize=14, fontweight="bold")
             ax.set_title(
-                f"PFI with 95% CI - Step {baseinfo_idx + 1} - Baseline Cross Mean: {baseline_info[baseinfo_idx]:.3f}",
+                f"PFI with 95% CI - Step {baseinfo_idx + 1} - Baseline Cross Mean: {baseline_info[baseinfo_idx]:.4f}",
                 fontsize=16,
                 fontweight="bold",
             )
@@ -1099,9 +1105,13 @@ def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=F
 
     if folder is not None:
         # Look for step_i files in the folder.
-        file_pattern = os.path.join(folder, "step_*_permutation_details.csv")
+        file_pattern = os.path.join(
+            folder, "step_*_permutation_permutation_details.csv"
+        )
         file_list = sorted(glob.glob(file_pattern))
-        summary_pattern = os.path.join(folder, "step_*_permutation_results.csv")
+        summary_pattern = os.path.join(
+            folder, "step_*_permutation_permutation_results.csv"
+        )
         summaries = sorted(glob.glob(summary_pattern))
     else:
         file_list = [path_df]
@@ -1199,13 +1209,15 @@ def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=F
                     fontweight="bold",
                 )
             ax_bar.set_xlabel(
-                "Permutation Feature Importance (PFI)", fontsize=14, fontweight="bold"
+                "Permutation Feature Importance (PFI, Higher is better)",
+                fontsize=14,
+                fontweight="bold",
             )
             ax_bar.set_ylabel("Feature", fontsize=14, fontweight="bold")
             step_name = os.path.basename(file).split("_permutation_details.csv")[0]
 
             ax_bar.set_title(
-                f"Top 10 Feature Importances with 95% CI - Step {baseinfo_idx + 1} - Baseline Cross Mean: {baseline_info[baseinfo_idx]:.3f}",
+                f"Top 10 Feature Importances with 95% CI - Step {baseinfo_idx + 1} - Baseline Cross Mean: {baseline_info[baseinfo_idx]:.4f}",
                 fontsize=16,
                 fontweight="bold",
             )
@@ -1293,7 +1305,9 @@ def plot_optuna_study(path_study=None, save_path=None, show=False):
     plt.gca().set_title("", loc="left")
     plt.gca().set_title("Optuna Parameter Importances", fontsize=14, fontweight="bold")
     plt.gca().set_ylabel("Hyperparameter", fontsize=11, fontweight="bold")
-    plt.gca().set_xlabel("Hyperparameter Importance", fontsize=11, fontweight="bold")
+    plt.gca().set_xlabel(
+        "Hyperparameter Importance (Higher is better)", fontsize=11, fontweight="bold"
+    )
     if save_path is not None:
         if not save_path.endswith(".pdf"):
             save_path_bis = save_path + "_importances.pdf"
@@ -1309,7 +1323,7 @@ def plot_optuna_study(path_study=None, save_path=None, show=False):
             "num_leaves",
             "bagging_fraction",
             "feature_fraction",
-            "min_child_samples",
+            # "min_child_samples",
         ],
     )
     plt.gcf().set_figheight(20)
@@ -1343,7 +1357,9 @@ def plot_feature_importance_heatmap(path_model_folder=None, save_path=None, show
     file_list = [
         os.path.join(path_model_folder, f) for f in os.listdir(path_model_folder)
     ]
-    file_list = [f for f in file_list if f.endswith(".txt")]  # Ensure only model files
+    file_list = [
+        f for f in file_list if f.endswith(".txt") or f.endswith(".pkl")
+    ]  # Ensure only model files
 
     if not file_list:
         print("No valid LightGBM model files found in the directory.")
@@ -1353,7 +1369,13 @@ def plot_feature_importance_heatmap(path_model_folder=None, save_path=None, show
     plot_df = {"Hold-Out Fold": []}
 
     # Extract feature names from the first model
-    model = lgb.Booster(model_file=file_list[0])
+    model_file = file_list[0]
+    if model_file.endswith(".pkl"):
+        with open(model_file, "rb") as f:
+            pipeline = pkl.load(f)
+        model = pipeline[-1]
+    else:
+        model = lgb.Booster(model_file=model_file)
     features = model.feature_name()
 
     for feature in features:
@@ -1361,7 +1383,12 @@ def plot_feature_importance_heatmap(path_model_folder=None, save_path=None, show
 
     # Collect feature importances for each model
     for model_path in file_list:
-        model = lgb.Booster(model_file=model_path)
+        if model_file.endswith(".pkl"):
+            with open(model_file, "rb") as f:
+                pipeline = pkl.load(f)
+            model = pipeline[-1]
+        else:
+            model = lgb.Booster(model_file=model_file)
         feat_imp = model.feature_importance("gain")
 
         # Extract hold-out fold identifier from filename
@@ -1412,29 +1439,31 @@ ablations = {
     "None": "None removed",
     "all_B": "(-) Bacillus Parameters",
     "all_P": "(-) Pathogen Parameters",
-    "B_Biofilm_Height": "(-) B_Biofilm_Height",
-    "B_Biofilm_Volume": "(-) B_Biofilm_Volume",
-    "B_Biofilm_Roughness": "(-) B_Biofilm_Roughness",
-    "B_Biofilm_SubstratumCoverage": "(-) B_Biofilm_SubstratumCoverage",
-    "P_Biofilm_Height": "(-) P_Biofilm_Height",
-    "P_Biofilm_Volume": "(-) P_Biofilm_Volume",
-    "P_Biofilm_Roughness": "(-) P_Biofilm_Roughness",
-    "P_Biofilm_SubstratumCoverage": "(-) P_Biofilm_SubstratumCoverage",
-    "Modele": "(-) Modele",
 }
+df = pd.read_csv("Data/Datasets/fe_combinatoric_COI.csv")
+
+for col in df.columns:
+    if col not in [
+        "Score",
+        "Unnamed: 0",
+        "Unnamed: 0.1",
+        "B_sample_ID",
+        "P_sample_ID",
+        "Bacillus",
+        "Pathogene",
+    ]:
+        ablations[col] = f"(-) {col}"
 
 
 def check_isin(text):
     """Returns the ablation key if it exists in the filename, else None."""
     for key in ablations.keys():
-        if key in text:
+        if key == text[3 : text.index("_LGBMRegressor")]:
+            print(key)
+            print(text)
+            print(ablations[key])
             return ablations[key]  # Return human-readable name
     return None
-
-
-def weighted_stat_func(data):
-    """Computes a weighted sum for confidence interval calculations."""
-    return np.sum(data)
 
 
 def plot_ablation_study(
@@ -1465,7 +1494,6 @@ def plot_ablation_study(
 
     # Map file names to human-readable ablation names using check_isin
     keys = [check_isin(file) for file in file_list]
-
     # Initialize plot DataFrame
     addon = "Weighted " if weighted else ""
     plot_df = {
@@ -1497,7 +1525,7 @@ def plot_ablation_study(
             plot_df[addon + "RMSE"].append(rmse)
 
             # Compute confidence intervals
-            func = weighted_stat_func if weighted else stat_func
+            func = weighted_stat_func if weighted else np.mean
             # RMSE CI
             low_r, up_r = compute_CI(
                 df[addon + "RMSE"],
@@ -1533,7 +1561,7 @@ def plot_ablation_study(
     sns.set_theme(style="whitegrid", context="talk")
     # For each metric, create bar plots with custom colors and bar labels.
     for metric in ["RMSE", "MAE"]:
-        fig, ax = plt.subplots(figsize=(12, 6))
+        fig, ax = plt.subplots(figsize=(15, 10))
         # Reorder so that baseline ("None removed") is first
         baseline_df = plot_df[plot_df["Features"] == "None removed"]
         others = plot_df[plot_df["Features"] != "None removed"].sort_values(
@@ -1593,7 +1621,7 @@ def plot_ablation_study(
             x=df_plot[addon + metric],
             y=np.arange(df_plot.shape[0]),
             xerr=intervals,
-            capsize=5,
+            capsize=3,
             fmt="o",
             ecolor="black",
         )
@@ -1628,7 +1656,9 @@ def plot_ablation_study(
             fontsize=16,
             fontweight="bold",
         )
-        ax.set_xlabel(f"{addon + metric} Score", fontsize=14, fontweight="bold")
+        ax.set_xlabel(
+            f"{addon + metric} Score (Lower is better)", fontsize=14, fontweight="bold"
+        )
         ax.set_ylabel("Ablated Feature", fontsize=14, fontweight="bold")
         plt.tight_layout()
         if save_path is not None:
@@ -1656,38 +1686,46 @@ def load_lgbm_model(path_model_folder=None, path_df=None, ho_name="1234_x_S.en")
         path_model_folder = "./Results/models/"
     file_list = os.listdir(path_model_folder)
     file_list = [path_model_folder + file for file in file_list]
-    model_file = [file for file in file_list if ho_name in file][0]
-
-    model = lgb.Booster(model_file=model_file)
-
+    model_file = [file for file in file_list if ho_name in file]
+    model_file = [file for file in model_file if file.endswith("pkl")][0]
     if path_df is None:
         method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
     else:
         method_df = pd.read_csv(path_df)
 
-    target = ["Score"]
-    cat_cols = ["Modele"]
-    remove_cols = [
-        "Unnamed: 0",
-        "B_sample_ID",
-        "P_sample_ID",
-        "Bacillus",
-        "Pathogene",
-    ]
+    pkl_flag = False
+    if model_file.endswith(".pkl"):
+        with open(model_file, "rb") as f:
+            estimator = pkl.load(f)
+        pkl_flag = True
+    else:
+        model = lgb.Booster(model_file=model_file)
 
-    num_cols = [
-        col for col in method_df.columns if col not in cat_cols + remove_cols + target
-    ]
+        target = ["Score"]
+        cat_cols = ["Modele"]
+        remove_cols = [
+            "Unnamed: 0",
+            "B_sample_ID",
+            "P_sample_ID",
+            "Bacillus",
+            "Pathogene",
+        ]
 
-    estimator = create_pipeline(
-        num_cols,
-        cat_cols,
-        imputer="KNNImputer",
-        scaler="RobustScaler",
-        estimator=model,
-        model_name="LGBMRegressor",
-    )
-    return estimator, method_df
+        num_cols = [
+            col
+            for col in method_df.columns
+            if col not in cat_cols + remove_cols + target
+        ]
+
+        estimator = create_pipeline(
+            num_cols,
+            cat_cols,
+            imputer="KNNImputer",
+            scaler="RobustScaler",
+            estimator=model,
+            model_name="LGBMRegressor",
+        )
+    return estimator, method_df, pkl_flag
 
 
 def retrieve_data(method_df, ho_name):
@@ -1763,11 +1801,16 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
             yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
         except Exception as e:
             Warning("Using pickling failed, trying load_lgbm function..")
-            pipeline, method_df = load_lgbm_model(
+            pipeline, method_df, pkl_flag = load_lgbm_model(
                 "./Results/models/", "./Data/Datasets/fe_combinatoric_COI.csv", ho_name
             )
             X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-            pipeline[:-1].fit(X_train)
+
+            X_train = X_train[pipeline.feature_names_in_]
+            X_test = X_test[pipeline.feature_names_in_]
+
+            if not pkl_flag:
+                pipeline[:-1].fit(X_train)
             X_test = pipeline[:-1].transform(X_test)
 
             yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
@@ -2066,13 +2109,14 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
                 yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
             except Exception as e:
                 Warning("Using pickling failed, trying load_lgbm function..")
-                pipeline, method_df = load_lgbm_model(
+                pipeline, method_df, pkl_flag = load_lgbm_model(
                     "./Results/models/",
                     "./Data/Datasets/fe_combinatoric_COI.csv",
                     ho_name,
                 )
                 X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-                pipeline[:-1].fit(X_train)
+                if not pkl_flag:
+                    pipeline[:-1].fit(X_train)
                 X_test = pipeline[:-1].transform(X_test)
 
                 yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
@@ -2176,6 +2220,7 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
             fontweight="bold",
         )
     ax[1].legend(loc="upper right", fontsize=12)
+    plt.suptitle("Model performances (MAE) by organism")
     plt.tight_layout()
     if save_path is not None:
         if not save_path.endswith(".pdf"):
@@ -2245,9 +2290,12 @@ def plot_global_SHAP(
 
     except Exception as e:
         Warning("Using pickling failed, trying load_lgbm function..")
-        pipeline, method_df = load_lgbm_model(path_model_folder, path_df, ho_name)
+        pipeline, method_df, pkl_flag = load_lgbm_model(
+            path_model_folder, path_df, ho_name
+        )
         X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
-        pipeline[:-1].fit(X_train)
+        if not pkl_flag:
+            pipeline[:-1].fit(X_train)
         X_test = pipeline[:-1].transform(X_test)
 
     explainer = shap.TreeExplainer(pipeline[-1])
@@ -2306,12 +2354,15 @@ def plot_local_SHAP(
         yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
     except Exception as e:
         Warning("Using pickling failed, trying load_lgbm function..")
-        pipeline, method_df = load_lgbm_model(path_model_folder, path_df, ho_name)
+        pipeline, method_df, pkl_flag = load_lgbm_model(
+            path_model_folder, path_df, ho_name
+        )
 
         X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
 
         # Fit Preprocessing steps
-        pipeline[:-1].fit(X_train)
+        if not pkl_flag:
+            pipeline[:-1].fit(X_train)
         X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
 
         yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
@@ -2681,6 +2732,9 @@ if __name__ == "__main__":
         print("Running plot_global_SHAP and saving to ./Plots/global_SHAP.pdf")
         plot_global_SHAP(
             ho_name="1234_x_S.en", save_path="./Plots/global_SHAP", show=False
+        )
+        plot_global_SHAP(
+            ho_name="11457_x_E.ce", save_path="./Plots/global_SHAP", show=False
         )
     elif plot_type == "plot_local_SHAP":
         print(

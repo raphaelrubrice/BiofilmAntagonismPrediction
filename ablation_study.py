@@ -7,7 +7,6 @@ import cupy as cp
 
 from lightgbm import LGBMRegressor
 from pipeline import create_pipeline, evaluate
-from plots import plot_feature_selection
 
 if __name__ == "__main__":
     # Read the dataset and create a dictionary of DataFrames
@@ -18,6 +17,7 @@ if __name__ == "__main__":
     cat_cols = ["Modele"]
     remove_cols = [
         "Unnamed: 0",
+        "Unnamed: 0.1",
         "B_sample_ID",
         "P_sample_ID",
         "Bacillus",
@@ -34,6 +34,19 @@ if __name__ == "__main__":
         study = pkl.load(f)
         best_params = study.best_trial.params
 
+    with open("./Results/feature_engineering/best_score.pkl", "rb") as f:
+        ref_score = pkl.load(f)
+
+    if study.best_trial.value >= ref_score:
+        # default values
+        best_params = {}
+
+    best_params["force_col_wise"] = True
+    best_params["random_state"] = 62
+    best_params['n_jobs'] = 1
+    best_params["tree_learner"] = 'serial'
+    best_params["verbose_eval"] = False
+    best_params['verbose'] = -1
     model = LGBMRegressor(**best_params)
 
     os.makedirs("Results/ablation_study/", exist_ok=True)
@@ -45,13 +58,9 @@ if __name__ == "__main__":
 
     for remove in Ablations:
         if remove == "all_B":
-            remove_list = [
-                col for col in combinatoric_df.columns if col.startswith("B_")
-            ]
+            remove_list = [col for col in combinatoric_df.columns if "B_" in col]
         elif remove == "all_P":
-            remove_list = [
-                col for col in combinatoric_df.columns if col.startswith("P_")
-            ]
+            remove_list = [col for col in combinatoric_df.columns if "P_" in col]
         elif remove is None:
             remove_list = []
         else:
@@ -110,6 +119,8 @@ if __name__ == "__main__":
         print("No result files found.")
 
     # Final clean-up: remove any remaining temporary objects and free GPU memory.
-    del combinatoric_df, df_dict, model, best_params, study, all_results
+    del combinatoric_df, df_dict, model, best_params, all_results
+    if study:
+        del study
     gc.collect()
     cp.get_default_memory_pool().free_all_blocks()

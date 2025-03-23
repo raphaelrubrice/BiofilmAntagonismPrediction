@@ -40,12 +40,11 @@ if __name__ == "__main__":
 
     estimator = LGBMRegressor(
         random_state=62,
-        n_jobs=-1,
+        n_jobs=1,
         gpu_use_dp=False,
         tree_learner="serial",
-        device="cuda",
+        # device="cuda",
         verbose_eval=False,
-        max_bin=63,  # Recommended value for good speed up
         verbose=-1,
     )
     estimator_name = "LGBMRegressor"
@@ -57,7 +56,7 @@ if __name__ == "__main__":
     FE_combinatoric_df = make_feature_engineered_dataset(
         combinatoric_df,
         "Data/Datasets/fe_combinatoric_COI.csv",
-        cols_prod=candidates,
+        cols_prod=num_cols,
         cols_diff=num_cols,
         cols_pow=num_cols,
         pow_orders=[2, 3],
@@ -90,6 +89,7 @@ if __name__ == "__main__":
     candidates = num_cols + cat_cols
     memory = []
     remove_dict = {}
+    last_to_remove = []
     while len(candidates) > 1:
         if i > 0:
             for feature_to_remove in remove_dict.keys():
@@ -107,6 +107,7 @@ if __name__ == "__main__":
 
         # Call the feature selection function.
         # It returns: lowest PFI (weighted cross mean), the feature name, and the cross mean.
+        last_to_remove = list(remove_dict.keys())
         remove_dict, cross_mean_metric = select_features(
             estimator,
             estimator_name,
@@ -117,7 +118,7 @@ if __name__ == "__main__":
             target=["Score"],
             candidates=candidates,
             remove_cols=remove_cols,
-            save_path="Results/native_feature_selection",
+            save_path="Results/feature_engineering",
             step_name=f"step_{i + 1}",
             shuffle=False,
             random_state=62,
@@ -143,7 +144,10 @@ if __name__ == "__main__":
         if cross_mean_metric > previous_metric:
             # Baseline will be the error when rmeoving last feature
             # so if error was increased, removing the last feature was a bad idea
-            memory.pop(-1)
+            for feature in last_to_remove:
+                memory.remove(feature)
+            with open("./Results/feature_engineering/best_score.pkl", "wb") as f:
+                pkl.dump(previous_metric, f)
             break
 
         i += 1
@@ -159,5 +163,5 @@ if __name__ == "__main__":
         pkl.dump(memory, f)
 
     FE_combinatoric_df[
-        [col for col in FE_combinatoric_df.columns if col not in memory]
+        [col for col in FE_combinatoric_df.columns if col not in memory + to_remove]
     ].to_csv("./Data/Datasets/fe_combinatoric_COI.csv")
