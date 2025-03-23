@@ -89,23 +89,25 @@ if __name__ == "__main__":
     i = 0
     candidates = num_cols + cat_cols
     memory = []
+    remove_dict = {}
     while len(candidates) > 1:
         if i > 0:
-            memory.append(feature_to_remove)
-            # Remove previously eliminated feature from candidate list and update columns.
-            candidates.remove(feature_to_remove)
-            if feature_to_remove in num_cols:
-                num_cols.remove(feature_to_remove)
-            if feature_to_remove in cat_cols:
-                cat_cols.remove(feature_to_remove)
-            remove_cols.append(feature_to_remove)
+            for feature_to_remove in remove_dict.keys():
+                memory.append(feature_to_remove)
+                # Remove previously eliminated feature from candidate list and update columns.
+                candidates.remove(feature_to_remove)
+                if feature_to_remove in num_cols:
+                    num_cols.remove(feature_to_remove)
+                if feature_to_remove in cat_cols:
+                    cat_cols.remove(feature_to_remove)
+                remove_cols.append(feature_to_remove)
             previous_metric = (
                 cross_mean_metric  # update baseline metric for next iteration
             )
 
         # Call the feature selection function.
         # It returns: lowest PFI (weighted cross mean), the feature name, and the cross mean.
-        lowest_pfi, feature_to_remove, cross_mean_metric = select_features(
+        remove_dict, cross_mean_metric = select_features(
             estimator,
             estimator_name,
             df_dict,
@@ -115,23 +117,22 @@ if __name__ == "__main__":
             target=["Score"],
             candidates=candidates,
             remove_cols=remove_cols,
-            save_path="Results/feature_engineering",
+            save_path="Results/native_feature_selection",
             step_name=f"step_{i + 1}",
             shuffle=False,
             random_state=62,
-            imputer="LinearRegressorImputer",
+            imputer="KNNImputer",
             scaler="RobustScaler",
             num_cols=num_cols,
             cat_cols=cat_cols,
             parallel=True,
-            n_jobs_outer=12,
+            n_jobs_outer=8,
             n_jobs_model=1,
-            batch_size=12,
+            batch_size=8,
         )
 
         print("*********")
-        print(f"Step {i + 1}: Best feature to remove: {feature_to_remove}")
-        print(f"PFI (lowest weighted cross mean): {lowest_pfi}")
+        print(f"Step {i + 1}: Best features to remove and their PFI: {remove_dict}")
         print(f"Last Cross Mean: {previous_metric}")
         print(f"Cross Mean: {cross_mean_metric}")
         print("*********")

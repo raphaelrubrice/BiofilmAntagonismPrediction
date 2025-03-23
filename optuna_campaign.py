@@ -70,9 +70,9 @@ def objective(trial):
         random_state=62,
         shuffle=False,
         parallel=True,
-        n_jobs_outer=12,
+        n_jobs_outer=6,
         n_jobs_model=1,
-        batch_size=12,
+        batch_size=6,
         temp_folder="./temp_results",
     )
 

@@ -553,6 +553,7 @@ def select_features(
     ho_folder_path="Data/Datasets",
     suffix="_hold_outs.pkl",
     mode="permutation",
+    tol=1e-3,
     target=["Score"],
     candidates=[None],
     remove_cols=[None],
@@ -684,9 +685,16 @@ def select_features(
             summary_perm["Weighted diff_RMSE"] + summary_perm["Weighted diff_MAE"]
         ) / 2
 
-        best_idx = summary_perm["Weighted diff Cross Mean"].idxmin()
-        feature_to_remove = summary_perm.loc[best_idx, "Permutation"]
-        pfi = summary_perm["Weighted diff Cross Mean"].loc[best_idx]
+        # best_idx = summary_perm["Weighted diff Cross Mean"].idxmin()
+        # feature_to_remove = summary_perm.loc[best_idx, "Permutation"]
+        # pfi = summary_perm["Weighted diff Cross Mean"].loc[best_idx]
+
+        mask = summary_perm["Weighted diff Cross Mean"] < tol
+
+        features_to_remove = summary_perm[mask]["Permutation"]
+        pfis = summary_perm[mask]["Weighted diff Cross Mean"]
+
+        remove_dict = {feature: pfis[i] for i, feature in enumerate(features_to_remove)}
 
         details_path = os.path.join(
             save_path, f"{step_name}_{estimator_name}_{mode}_permutation_details.csv"
@@ -700,7 +708,7 @@ def select_features(
         print("Saving permutation summary to:", summary_path)
         summary_perm.to_csv(summary_path, index=False)
 
-        return pfi, feature_to_remove, cross_mean
+        return remove_dict, cross_mean
 
     # elif selection_strategy == "lofo":  # Leave One Feature Out
     #     for feature in candidates:
