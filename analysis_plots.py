@@ -937,6 +937,8 @@ def plot_native_feature_selection(
         # Look for step_i files in the folder.
         file_pattern = os.path.join(folder, "step_*_permutation_details.csv")
         file_list = sorted(glob.glob(file_pattern))
+        summary_pattern = os.path.join(folder, "step_*_permutation_results.csv")
+        summaries = sorted(glob.glob(summary_pattern))
     else:
         file_list = [path_df]
 
@@ -951,6 +953,15 @@ def plot_native_feature_selection(
 
     sns.set_theme(style="whitegrid")
     # print(file_list)
+
+    baseline_info = []
+    for idx, file in enumerate(summaries):
+        summary_step = pd.read_csv(file)
+        w_rmse = summary_step["Weighted RMSE"] - summary_step["Weighted diff_RMSE"]
+        w_mae = summary_step["Weighted MAE"] - summary_step["Weighted diff_MAE"]
+        baseline_info.append(0.5 * (w_mae.iloc[0] + w_rmse.iloc[0]))
+
+    baseinfo_idx = 0
     for idx, file in enumerate(file_list):
         try:
             # Read the permutation details for the step.
@@ -1021,7 +1032,9 @@ def plot_native_feature_selection(
             )
             ax.set_ylabel("Feature", fontsize=14, fontweight="bold")
             ax.set_title(
-                f"PFI with 95% CI - {step_name}", fontsize=16, fontweight="bold"
+                f"PFI with 95% CI - Step {baseinfo_idx + 1} - Baseline Cross Mean: {baseline_info[baseinfo_idx]:.3f}",
+                fontsize=16,
+                fontweight="bold",
             )
 
             # Annotate each bar with its PFI value.
@@ -1039,6 +1052,7 @@ def plot_native_feature_selection(
                     fontsize=12,
                     fontweight="bold",
                 )
+            baseinfo_idx += 1
         except Exception as e:
             print(f"An error occurred at step {idx + 1}")
             print(e)
@@ -1085,10 +1099,10 @@ def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=F
 
     if folder is not None:
         # Look for step_i files in the folder.
-        file_pattern = os.path.join(
-            folder, "step_*_LGBMRegressor_controled_homology_permutation_details.csv"
-        )
+        file_pattern = os.path.join(folder, "step_*_permutation_details.csv")
         file_list = sorted(glob.glob(file_pattern))
+        summary_pattern = os.path.join(folder, "step_*_permutation_results.csv")
+        summaries = sorted(glob.glob(summary_pattern))
     else:
         file_list = [path_df]
 
@@ -1096,6 +1110,14 @@ def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=F
         print("No step files found in the specified path.")
         return
 
+    baseline_info = []
+    for idx, file in enumerate(summaries):
+        summary_step = pd.read_csv(file)
+        w_rmse = summary_step["Weighted RMSE"] - summary_step["Weighted diff_RMSE"]
+        w_mae = summary_step["Weighted MAE"] - summary_step["Weighted diff_MAE"]
+        baseline_info.append(0.5 * (w_mae.iloc[0] + w_rmse.iloc[0]))
+
+    baseinfo_idx = 0
     # Process each step_i file.
     for idx, file in enumerate(file_list):
         try:
@@ -1181,17 +1203,19 @@ def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=F
             )
             ax_bar.set_ylabel("Feature", fontsize=14, fontweight="bold")
             step_name = os.path.basename(file).split("_permutation_details.csv")[0]
+
             ax_bar.set_title(
-                f"Top 10 Feature Importances with 95% CI - {step_name}",
+                f"Top 10 Feature Importances with 95% CI - Step {baseinfo_idx + 1} - Baseline Cross Mean: {baseline_info[baseinfo_idx]:.3f}",
                 fontsize=16,
                 fontweight="bold",
             )
+
             fig_bar.tight_layout()
             if save_path is not None:
                 save_bar = (
-                    f"{save_path}_{step_name}_top.pdf"
+                    f"{save_path}_step_{baseinfo_idx + 1}_top.pdf"
                     if not save_path.endswith(".pdf")
-                    else f"{save_path}_{step_name}_top"
+                    else f"{save_path}_step_{baseinfo_idx + 1}_top"
                 )
                 fig_bar.savefig(save_bar, format="pdf", bbox_inches="tight")
             if show:
@@ -1216,23 +1240,24 @@ def plot_feature_engineering(path_df=None, ci_mode="bca", save_path=None, show=F
                 linewidths=0.5,
                 cbar_kws={"shrink": 0.75},
             )
+
             plt.title(
-                f"Feature Engineering Metrics Heatmap - {step_name}",
+                f"Feature Engineering Metrics Heatmap - Step {baseinfo_idx + 1}",
                 fontsize=16,
                 fontweight="bold",
             )
             plt.tight_layout()
             if save_path is not None:
                 save_heat = (
-                    f"{save_path}_{step_name}_heat.pdf"
+                    f"{save_path}_step_{baseinfo_idx + 1}_heat.pdf"
                     if not save_path.endswith(".pdf")
-                    else f"{save_path}_{step_name}_heat"
+                    else f"{save_path}_step_{baseinfo_idx + 1}_heat"
                 )
                 fig_heat.savefig(save_heat, format="pdf", bbox_inches="tight")
             if show:
                 plt.show()
             plt.close(fig_heat)
-
+            baseinfo_idx += 1
         except Exception as e:
             print(f"An error occurred at step {idx + 1} (file: {file})")
             print(e)

@@ -45,6 +45,7 @@ if __name__ == "__main__":
         tree_learner="serial",
         device="cuda",
         verbose_eval=False,
+        max_bin=63,  # Recommended value for good speed up
         verbose=-1,
     )
     estimator_name = "LGBMRegressor"
@@ -55,7 +56,7 @@ if __name__ == "__main__":
     # Save Feature Engineering to avoid recomputation at each step
     FE_combinatoric_df = make_feature_engineered_dataset(
         combinatoric_df,
-        "Data/Datasets/combinatoric_FeatureEng.csv",
+        "Data/Datasets/fe_combinatoric_COI.csv",
         cols_prod=candidates,
         cols_diff=num_cols,
         cols_pow=num_cols,
@@ -76,7 +77,11 @@ if __name__ == "__main__":
 
     df_dict = {"combinatoric": FE_combinatoric_df}
     # df_dict = {"avg": FE_avg_df}
-
+    num_cols += [
+        col
+        for col in FE_combinatoric_df.columns
+        if col not in num_cols + cat_cols + remove_cols + target
+    ]
     feature_to_remove = None
     previous_metric = None
     cross_mean_metric = None
@@ -114,10 +119,14 @@ if __name__ == "__main__":
             step_name=f"step_{i + 1}",
             shuffle=False,
             random_state=62,
-            imputer="KNNImputer",
+            imputer="LinearRegressorImputer",
             scaler="RobustScaler",
             num_cols=num_cols,
             cat_cols=cat_cols,
+            parallel=True,
+            n_jobs_outer=12,
+            n_jobs_model=1,
+            batch_size=12,
         )
 
         print("*********")

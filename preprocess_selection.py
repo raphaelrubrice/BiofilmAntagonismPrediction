@@ -86,11 +86,9 @@ if __name__ == "__main__":
                     scaler=scaler,
                     estimator=LGBMRegressor(
                         random_state=62,
-                        n_jobs=-1,
+                        n_jobs=1,
                         gpu_use_dp=False,
-                        max_bin=63,
                         tree_learner="serial",
-                        device="cuda",
                         verbose_eval=False,
                         verbose=-1,
                     ),
@@ -109,7 +107,15 @@ if __name__ == "__main__":
                 ho_folder_path="Data/Datasets/",
                 target=target,
                 remove_cols=remove_cols,
+                random_state=62,
+                shuffle=False,
+                parallel=True,
+                n_jobs_outer=12,
+                n_jobs_model=1,
+                batch_size=12,
+                temp_folder="./temp_results",
             )
+
             # If results is not already a DataFrame, convert it.
             results_df = (
                 results if isinstance(results, pd.DataFrame) else pd.DataFrame(results)

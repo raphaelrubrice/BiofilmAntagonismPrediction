@@ -85,6 +85,11 @@ if __name__ == "__main__":
             remove_cols=remove_cols + remove_list,
             save=save,
             save_path="./Results/models/",
+            parallel=True,
+            n_jobs_outer=12,
+            n_jobs_model=1,
+            batch_size=12,
+            temp_folder="./temp_results",
         )
         results.to_csv(f"Results/ablation_study/ho_{remove}_LGBMRegressor_results.csv")
 

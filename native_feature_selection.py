@@ -6,11 +6,12 @@ import gc
 import cupy as cp
 
 from lightgbm import LGBMRegressor
-from pipeline import select_features, create_pipeline
+from pipeline import select_features, create_pipeline, downcast_df
 # from plots import plot_feature_selection
 
 if __name__ == "__main__":
     combinatoric_df = pd.read_csv("Data/Datasets/combinatoric_COI.csv")
+    combinatoric_df = downcast_df(combinatoric_df)
     # avg_df = pd.read_csv("Data/Datasets/avg_COI.csv")
     df_dict = {"combinatoric": combinatoric_df}
     # df_dict = {"avg": avg_df}
@@ -26,10 +27,10 @@ if __name__ == "__main__":
 
     estimator = LGBMRegressor(
         random_state=62,
-        n_jobs=-1,
+        n_jobs=1,
         gpu_use_dp=False,
         tree_learner="serial",
-        device="cuda",
+        # device="cuda",
         verbose_eval=False,
         verbose=-1,
     )
@@ -42,6 +43,8 @@ if __name__ == "__main__":
     i = 0
     candidates = num_cols + cat_cols
     memory = []
+    # When running parallel evaluation, must pass the path not the actual csv
+    # df_dict = {"combinatoric": "Data/Datasets/combinatoric_COI.csv"}
     while len(candidates) > 1:
         if i > 0:
             memory.append(feature_to_remove)
@@ -76,6 +79,10 @@ if __name__ == "__main__":
             scaler="RobustScaler",
             num_cols=num_cols,
             cat_cols=cat_cols,
+            parallel=True,
+            n_jobs_outer=12,
+            n_jobs_model=1,
+            batch_size=12,
         )
 
         print("*********")

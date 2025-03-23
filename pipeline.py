@@ -1,8 +1,9 @@
 import pandas as pd
 import numpy as np
 import pickle as pkl
-import json, os, gc
+import json, os, gc, subprocess, sys, time
 import warnings
+
 from copy import deepcopy
 from scipy import stats
 
@@ -18,6 +19,7 @@ from utils import is_gpu_available
 
 from cuml.neighbors import KNeighborsRegressor
 from cuml.ensemble import RandomForestRegressor as gpuRandomForestRegressor
+
 
 from sklearn import set_config
 from sklearn.pipeline import Pipeline
@@ -47,7 +49,7 @@ from sklearn.metrics import (
     r2_score,
 )
 
-from joblib import Memory
+from joblib import Memory, Parallel, delayed
 
 memory = Memory(location="./cachedir", verbose=0)
 set_config(transform_output="pandas")
@@ -85,16 +87,22 @@ def create_pipeline(
 ):
     # Mapping for numerical imputers
     if is_gpu_available():
-        knn_imputer = IterativeImputer(estimator=KNeighborsRegressor())
-        rf_imputer = IterativeImputer(estimator=gpuRandomForestRegressor())
+        knn_imputer = IterativeImputer(estimator=KNeighborsRegressor(), max_iter=5)
+        rf_imputer = IterativeImputer(estimator=gpuRandomForestRegressor(), max_iter=5)
     else:
         knn_imputer = KNNImputer()
         rf_imputer = IterativeImputer(estimator=RandomForestRegressor())
+    # Add LinearRegressorImputer with max_iter=5.
+    linear_regressor_imputer = IterativeImputer(
+        estimator=LinearRegression(), max_iter=5
+    )
+
     imputer_map = {
         "MeanImputer": SimpleImputer(strategy="mean"),
         "MedianImputer": SimpleImputer(strategy="median"),
         "KNNImputer": knn_imputer,
         "RandomForestImputer": rf_imputer,
+        "LinearRegressorImputer": linear_regressor_imputer,
     }
 
     scaler_map = {
@@ -138,6 +146,41 @@ def create_pipeline(
     return pipeline
 
 
+def downcast_df(df):
+    """
+    Downcast numerical columns to lower precision and convert object columns to category.
+    """
+    import numpy as np
+
+    for col in df.columns:
+        col_type = df[col].dtype
+        if col_type == "int64":
+            df[col] = df[col].astype(np.int32)
+        elif col_type == "float64":
+            df[col] = df[col].astype(np.float32)
+        elif col_type == "object":
+            df[col] = df[col].astype("category")
+    return df
+
+
+# --- Helper for chunked prediction and GPU cleanup ---
+def predict_in_chunks(estimator, X, chunk_size=2048):
+    preds = []
+    for start in range(0, X.shape[0], chunk_size):
+        chunk = X.iloc[start : start + chunk_size]
+        preds.append(estimator.predict(chunk))
+    return np.concatenate(preds).ravel()
+
+
+def gpu_cleanup():
+    try:
+        import cupy as cp
+
+        cp.get_default_memory_pool().free_all_blocks()
+    except Exception as e:
+        print(f"[DEBUG] GPU memory cleanup failed: {e}")
+
+
 def evaluate_hold_out(
     estimator,
     estimator_name,
@@ -153,8 +196,23 @@ def evaluate_hold_out(
     save=False,
     save_path="./Results/models/",
 ):
+    import os, gc, pickle as pkl
+    from sklearn.pipeline import Pipeline
+    from sklearn.metrics import mean_absolute_error, root_mean_squared_error
+
+    # Enforce thread control for CPU libraries.
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+
     if save:
         os.makedirs(save_path, exist_ok=True)
+
+    if hasattr(estimator, "get_params"):
+        final_estimator = (
+            estimator.steps[-1][1] if isinstance(estimator, Pipeline) else estimator
+        )
+        params = final_estimator.get_params()
+
     X_train, X_test, y_train, y_test = get_train_test_split(
         ho_name,
         method_df,
@@ -166,51 +224,37 @@ def evaluate_hold_out(
     )
 
     estimator.fit(X_train, np.ravel(y_train))
+    gpu_cleanup()
 
-    yhat = np.ravel(estimator.predict(X_test))
+    yhat = predict_in_chunks(estimator, X_test)
+    gpu_cleanup()
 
-    abs_err = np.abs(yhat - y_test.to_numpy())
-    relative_abs_err = np.abs(yhat - y_test.to_numpy()) / (
-        np.maximum(1e-3, np.abs(y_test.to_numpy()))
-    )
+    y_test_arr = y_test.to_numpy()
+    mae = mean_absolute_error(y_test, yhat)
+    try:
+        rmse = root_mean_squared_error(y_test, yhat)
+    except Exception as e:
+        rmse = np.nan
 
-    # results = {ho_name : {
-    #                 "yhat":yhat.tolist(),
-    #                 "y_true":y_test.to_numpy().tolist(),
-    #                 "mae":mean_absolute_error(y_test, yhat),
-    #                 "std_abs_err":np.std(abs_err, axis=0)[0],
-    #                 "mape":mean_absolute_percentage_error(y_test, yhat),
-    #                 "std_relative_abs_err":np.std(relative_abs_err, axis=0)[0],
-    #                 "rmse":root_mean_squared_error(y_test, yhat),
-    #                 "r2":r2_score(y_test, yhat)
-    #                     }
-    #         }
     results = {
         "Evaluation": [ho_name],
         "Method": [method_name],
         "Model": [estimator_name],
-        "MAE": [mean_absolute_error(y_test, yhat)],
-        "std_abs_err": [np.std(abs_err, axis=0)[0]],
-        "MAPE": [mean_absolute_percentage_error(y_test, yhat)],
-        "std_relative_abs_err": [np.std(relative_abs_err, axis=0)[0]],
-        "RMSE": [root_mean_squared_error(y_test, yhat)],
-        "R2": [r2_score(y_test, yhat)],
+        "MAE": [mae],
+        "RMSE": [rmse],
         "Y_hat": [yhat],
-        "Y_true": [y_test.to_numpy()],
-        "n_samples": yhat.shape[0],
+        "Y_true": [y_test_arr],
+        "n_samples": [yhat.shape[0]],
     }
-    # print(results)
     df = pd.DataFrame(results)
 
     if mode != "feature_selection":
         if save:
-            # Save the model as well as permutation results.
             model_save_path = os.path.join(
                 save_path, f"{estimator_name}_{ho_name}_model.txt"
             )
             estimator[-1].booster_.save_model(model_save_path)
-
-            with open(model_save_path[-4] + "_pipeline.pkl", "wb") as f:
+            with open(model_save_path[:-4] + "_pipeline.pkl", "wb") as f:
                 pkl.dump(estimator, f)
         return df
     else:
@@ -218,59 +262,173 @@ def evaluate_hold_out(
         permutations = [df]
         input_features = list(X_train.columns)
         for feature in input_features:
-            permuted_X_test = X_test.copy()
+            permuted_X_test = X_test.copy(deep=False)
+            permuted_X_test[feature] = X_test[feature].values[
+                np.random.permutation(X_test.shape[0])
+            ]
 
-            # Apply permutation on the feature
-            permuted_X_test[feature] = permuted_X_test[feature] = np.random.permutation(
-                permuted_X_test[feature].values
-            )
+            yhat_perm = predict_in_chunks(estimator, permuted_X_test)
+            gpu_cleanup()
 
-            yhat = np.ravel(estimator.predict(permuted_X_test))
+            mae_perm = mean_absolute_error(y_test, yhat_perm)
+            try:
+                rmse_perm = root_mean_squared_error(y_test, yhat_perm)
+            except Exception as e:
+                rmse_perm = np.nan
 
-            abs_err = np.abs(yhat - y_test.to_numpy())
-            relative_abs_err = np.abs(yhat - y_test.to_numpy()) / (
-                np.maximum(1e-3, np.abs(y_test.to_numpy()))
-            )
-
-            # results = {ho_name : {
-            #                 "yhat":yhat.tolist(),
-            #                 "y_true":y_test.to_numpy().tolist(),
-            #                 "mae":mean_absolute_error(y_test, yhat),
-            #                 "std_abs_err":np.std(abs_err, axis=0)[0],
-            #                 "mape":mean_absolute_percentage_error(y_test, yhat),
-            #                 "std_relative_abs_err":np.std(relative_abs_err, axis=0)[0],
-            #                 "rmse":root_mean_squared_error(y_test, yhat),
-            #                 "r2":r2_score(y_test, yhat)
-            #                     }
-            #         }
-            results = {
+            results_perm = {
                 "Evaluation": [ho_name],
                 "Method": [method_name],
                 "Model": [estimator_name],
-                "MAE": [mean_absolute_error(y_test, yhat)],
-                "std_abs_err": [np.std(abs_err, axis=0)[0]],
-                "MAPE": [mean_absolute_percentage_error(y_test, yhat)],
-                "std_relative_abs_err": [np.std(relative_abs_err, axis=0)[0]],
-                "RMSE": [root_mean_squared_error(y_test, yhat)],
-                "R2": [r2_score(y_test, yhat)],
-                "Y_hat": [yhat],
-                "Y_true": [y_test.to_numpy()],
-                "n_samples": yhat.shape[0],
+                "MAE": [mae_perm],
+                "RMSE": [rmse_perm],
+                "Y_hat": [yhat_perm],
+                "Y_true": [y_test_arr],
+                "n_samples": [yhat_perm.shape[0]],
                 "Permutation": [feature],
             }
-            # print(results)
-            df = pd.DataFrame(results)
-            permutations.append(df)
+            permutations.append(pd.DataFrame(results_perm))
         if save:
-            # Save the model as well as permutation results.
             model_save_path = os.path.join(
                 save_path, f"{estimator_name}_{ho_name}_model.txt"
             )
-            estimator.booster_.save_model(model_save_path)
-
-            with open(model_save_path[-4] + "_pipeline.pkl", "wb") as f:
+            estimator[-1].booster_.save_model(model_save_path)
+            with open(model_save_path[:-4] + "_pipeline.pkl", "wb") as f:
                 pkl.dump(estimator, f)
         return pd.concat(permutations)
+
+
+def evaluate_method_disk_batched(
+    estimator,
+    estimator_name,
+    method_df,
+    method_name,
+    ho_sets,
+    target=["Score"],
+    mode="controled_homology",
+    feature_selection=False,
+    remove_cols=[None],
+    shuffle=False,
+    random_state=62,
+    save=False,
+    save_path="./Results/models/",
+    n_jobs_outer=8,  # Number of parallel fold evaluations for normal folds
+    n_jobs_model=1,  # Number of cores per model
+    batch_size=12,  # Process 12 folds at a time for normal folds
+    temp_folder="./temp_results",  # Folder for intermediate results
+):
+    import os
+    import gc
+    from joblib import Parallel, delayed
+    from sklearn.pipeline import Pipeline
+
+    os.makedirs(temp_folder, exist_ok=True)
+
+    # Set mode for feature selection if applicable.
+    feature_selection = "feature_selection" if feature_selection else "classic"
+
+    # Define heavy folds by name.
+    heavy_folds = {"E.ce", "E.co", "S.en", "S.au"}
+
+    # Separate heavy and normal folds.
+    all_ho_names = list(ho_sets.keys())
+    batch_files = []
+
+    # --- Process folds in parallel using disk batching ---
+    if all_ho_names:
+        total_normal = len(all_ho_names)
+        for batch_idx, batch_start in enumerate(range(0, total_normal, batch_size)):
+            print(
+                f"Processing normal batch {batch_idx + 1}/{(total_normal + batch_size - 1) // batch_size}"
+            )
+            batch_end = min(batch_start + batch_size, total_normal)
+            batch = all_ho_names[batch_start:batch_end]
+
+            # If using LightGBM, ensure n_jobs is set appropriately in the model
+            if hasattr(estimator, "n_jobs") or (
+                hasattr(estimator, "get_params") and "n_jobs" in estimator.get_params()
+            ):
+                # For Pipeline objects, access the final estimator
+                if isinstance(estimator, Pipeline):
+                    final_estimator = estimator.steps[-1][1]
+                    if hasattr(final_estimator, "set_params"):
+                        print(f"Number of threads for each fold : {n_jobs_model}")
+                        final_estimator.set_params(n_jobs=n_jobs_model)
+                else:
+                    print(f"Number of threads for each fold : {n_jobs_model}")
+                    estimator.set_params(n_jobs=n_jobs_model)
+
+            result_list = []
+            if n_jobs_outer > 1:
+                print(
+                    f"Processing {len(batch)} folds in parallel with {n_jobs_outer} jobs."
+                )
+                result_list = Parallel(n_jobs=n_jobs_outer)(
+                    delayed(evaluate_hold_out)(
+                        estimator,
+                        estimator_name,
+                        method_df,
+                        method_name,
+                        ho_name,
+                        ho_sets,
+                        target=target,
+                        remove_cols=remove_cols,
+                        mode=feature_selection,
+                        shuffle=shuffle,
+                        random_state=random_state,
+                        save=save,
+                        save_path=save_path,
+                    )
+                    for ho_name in batch
+                )
+            else:
+                for ho_name in batch:
+                    ho_df = evaluate_hold_out(
+                        estimator,
+                        estimator_name,
+                        method_df,
+                        method_name,
+                        ho_name,
+                        ho_sets,
+                        target=target,
+                        remove_cols=remove_cols,
+                        mode=feature_selection,
+                        shuffle=shuffle,
+                        random_state=random_state,
+                        save=save,
+                        save_path=save_path,
+                    )
+                    result_list.append(ho_df)
+
+            if result_list:
+                batch_df = pd.concat(result_list, axis=0)
+                batch_file = os.path.join(
+                    temp_folder,
+                    f"batch_{batch_idx:03d}_{method_name}_{estimator_name}.csv",
+                )
+                batch_df.to_csv(batch_file)
+                batch_files.append(batch_file)
+
+                del result_list, batch_df
+                gc.collect()
+
+    # --- Combine all batch files ---
+    print(f"Combining {len(batch_files)} batch results...")
+    final_dfs = []
+    for batch_file in batch_files:
+        batch_df = pd.read_csv(batch_file)
+        final_dfs.append(batch_df)
+        del batch_df
+        gc.collect()
+    result_df = pd.concat(final_dfs, axis=0)
+
+    # Optionally clean up temporary files.
+    if os.environ.get("KEEP_TEMP_FILES", "0") != "1":
+        for file in batch_files:
+            if os.path.exists(file):
+                os.remove(file)
+
+    return result_df
 
 
 def evaluate_method(
@@ -325,6 +483,11 @@ def evaluate(
     random_state=62,
     save=False,
     save_path="./Results/models/",
+    parallel=False,
+    n_jobs_outer=8,
+    n_jobs_model=1,
+    batch_size=12,
+    temp_folder="./temp_results",
 ):
     results = []
     for method_name in tqdm(["avg", "random", "combinatoric"]):
@@ -338,21 +501,43 @@ def evaluate(
             ho_sets = get_hold_out_sets(
                 method_name, ho_folder_path=ho_folder_path, suffix=suffix
             )
-            results_df = evaluate_method(
-                estimator,
-                estimator_name,
-                method_df,
-                method_name,
-                ho_sets,
-                target=target,
-                remove_cols=remove_cols,
-                mode=mode,
-                feature_selection=feature_selection,
-                shuffle=shuffle,
-                random_state=random_state,
-                save=save,
-                save_path=save_path,
-            )
+            # method_df = reduce_mem_usage(method_df)
+            if parallel:
+                results_df = evaluate_method_disk_batched(
+                    estimator,
+                    estimator_name,
+                    method_df,
+                    method_name,
+                    ho_sets,
+                    target=target,
+                    mode=mode,
+                    feature_selection=feature_selection,
+                    remove_cols=remove_cols,
+                    shuffle=shuffle,
+                    random_state=random_state,
+                    save=save,
+                    save_path=save_path,
+                    n_jobs_outer=n_jobs_outer,  # Number of parallel fold evaluations
+                    n_jobs_model=n_jobs_model,  # Number of cores per model
+                    batch_size=batch_size,  # Process 12 folds at a time
+                    temp_folder=temp_folder,  # Folder for intermediate results
+                )
+            else:
+                results_df = evaluate_method(
+                    estimator,
+                    estimator_name,
+                    method_df,
+                    method_name,
+                    ho_sets,
+                    target=target,
+                    remove_cols=remove_cols,
+                    mode=mode,
+                    feature_selection=feature_selection,
+                    shuffle=shuffle,
+                    random_state=random_state,
+                    save=save,
+                    save_path=save_path,
+                )
             results.append(results_df)
         else:
             warn_message = f"{method_name} not found in dataset_dict with keys {dataset_dict.keys()}. Skipping this method"
@@ -379,6 +564,11 @@ def select_features(
     scaler="RobustScaler",
     num_cols=None,
     cat_cols=None,
+    parallel=False,
+    n_jobs_outer=8,
+    n_jobs_model=1,
+    batch_size=12,
+    temp_folder="./temp_results",
 ):
     # Ensure candidate features are provided.
     assert candidates != [None], (
@@ -387,8 +577,6 @@ def select_features(
 
     os.makedirs(save_path, exist_ok=True)
     if selection_strategy == "permutation":
-        print("Starting permutation selection strategy.")
-        print("Creating pipeline with num_cols:", num_cols, "and cat_cols:", cat_cols)
         # Build a pipeline that incorporates feature permutation for importance computation.
         fe_estimator = create_pipeline(
             num_cols,
@@ -398,9 +586,7 @@ def select_features(
             estimator=estimator,
             model_name=estimator_name,
         )
-        print("Pipeline created:", fe_estimator)
 
-        print("Evaluating pipeline using evaluate() function...")
         results = evaluate(
             fe_estimator,
             estimator_name,
@@ -413,110 +599,67 @@ def select_features(
             remove_cols=remove_cols,
             random_state=random_state,
             shuffle=shuffle,
+            parallel=parallel,
+            n_jobs_outer=n_jobs_outer,
+            n_jobs_model=n_jobs_model,
+            batch_size=batch_size,
+            temp_folder=temp_folder,
         )
         results_df = (
             results if isinstance(results, pd.DataFrame) else pd.DataFrame(results)
         )
-        print("Results obtained. Shape of results_df:", results_df.shape)
-        print("Results_df head:\n", results_df.head())
 
-        # -------------------------------
         # PERMUTATION FEATURE IMPORTANCE
-        # -------------------------------
-        print("Computing permutation feature importance...")
         diff_list = []
         group_cols = ["Evaluation", "Model", "Method"]
-        print("Group columns used:", group_cols)
 
-        # Retrieve cross mean metric for the baseline
+        # Retrieve cross mean metric for the baseline.
         base_df = results_df[results_df["Permutation"] == "No Permutation"]
-        print("Base DataFrame (No Permutation) shape:", base_df.shape)
         test_size_vector = base_df["n_samples"].copy()
         N = base_df["n_samples"].sum()
-        print("Total n_samples (N):", N)
         w_rmse = (base_df["RMSE"] * test_size_vector / N).sum()
         w_mae = (base_df["MAE"] * test_size_vector / N).sum()
         cross_mean = 0.5 * (w_rmse + w_mae)
-        print("Computed weighted RMSE:", w_rmse, "Weighted MAE:", w_mae)
-        print("Baseline cross mean metric:", cross_mean)
 
         weight_dict = {
-            ho: base_df[base_df["Evaluation"] == ho]["n_samples"] / N
+            ho: (base_df[base_df["Evaluation"] == ho]["n_samples"] / N).iloc[0]
             for ho in pd.unique(results_df["Evaluation"])
         }
-        print("Weight dictionary for each Evaluation:", weight_dict)
 
         for name, group in results_df.groupby(group_cols):
-            print("Processing group:", name)
-            # Retrieve the baseline row (without any permutation).
             baseline = group[group["Permutation"] == "No Permutation"]
-            print("Baseline for current group shape:", baseline.shape)
             if baseline.empty:
-                print("Baseline is empty for group:", name, "Skipping group.")
                 continue
             baseline_row = baseline.iloc[0]
             baseline_rmse = baseline_row["RMSE"]
             baseline_mae = baseline_row["MAE"]
-            print("Baseline RMSE:", baseline_rmse, "Baseline MAE:", baseline_mae)
 
-            # Process candidate feature permutations (excluding the baseline row).
             permuted = group[group["Permutation"] != "No Permutation"].copy()
-            print("Permuted candidates shape:", permuted.shape)
             if permuted.empty:
-                print("No permuted candidates found for group:", name)
                 continue
 
             permuted["diff_RMSE"] = permuted["RMSE"] - baseline_rmse
             permuted["diff_MAE"] = permuted["MAE"] - baseline_mae
-            print(
-                "Computed diff_RMSE and diff_MAE for current group.\n",
-                permuted[["RMSE", "diff_RMSE", "MAE", "diff_MAE"]].head(),
-            )
 
             eval_key = pd.unique(group["Evaluation"])[0]
             weight = weight_dict[eval_key]
-            print(
-                "Using weight for Evaluation",
-                eval_key,
-                ":",
-                weight.head() if hasattr(weight, "head") else weight,
-            )
 
             permuted["Weighted diff_RMSE"] = (permuted["RMSE"] - baseline_rmse) * weight
             permuted["Weighted diff_MAE"] = (permuted["MAE"] - baseline_mae) * weight
-            print(
-                "Weighted diff_RMSE and diff_MAE computed:\n",
-                permuted[["Weighted diff_RMSE", "Weighted diff_MAE"]].head(),
-            )
 
             permuted["Weighted RMSE"] = permuted["RMSE"] * weight
             permuted["Weighted MAE"] = permuted["MAE"] * weight
-            print(
-                "Weighted RMSE and Weighted MAE computed:\n",
-                permuted[["Weighted RMSE", "Weighted MAE"]].head(),
-            )
 
-            # The weighted cross mean is the average of the weighted differences.
             permuted["Weighted Cross Mean"] = 0.5 * (
                 permuted["Weighted diff_RMSE"] + permuted["Weighted diff_MAE"]
             )
-            print(
-                "Weighted Cross Mean computed:\n",
-                permuted[["Weighted Cross Mean"]].head(),
-            )
-
             diff_list.append(permuted)
-            print("Appended current group's permuted data to diff_list.")
 
         if len(diff_list) == 0:
-            print("No permutation differences computed.")
             return None, None, None
 
         diff_df = pd.concat(diff_list, axis=0)
-        print("Concatenated diff_list into diff_df. Shape of diff_df:", diff_df.shape)
-        print("diff_df head:\n", diff_df.head())
 
-        # Aggregate the differences per candidate feature.
         summary_perm = (
             diff_df.groupby("Permutation")
             .apply(
@@ -533,32 +676,18 @@ def select_features(
             )
             .reset_index()
         )
-        print("Aggregated summary_perm:\n", summary_perm.head())
 
-        # Not the PFI cross mean but the actual cross mean for the summary
         summary_perm["Weighted Cross Mean"] = (
             summary_perm["Weighted RMSE"] + summary_perm["Weighted MAE"]
         ) / 2
-
         summary_perm["Weighted diff Cross Mean"] = (
             summary_perm["Weighted diff_RMSE"] + summary_perm["Weighted diff_MAE"]
         ) / 2
 
-        print(
-            "Updated summary_perm with Weighted Cross Mean and Weighted diff Cross Mean:\n",
-            summary_perm.head(),
-        )
-
-        # Select the candidate feature with the lowest PFI
         best_idx = summary_perm["Weighted diff Cross Mean"].idxmin()
         feature_to_remove = summary_perm.loc[best_idx, "Permutation"]
         pfi = summary_perm["Weighted diff Cross Mean"].loc[best_idx]
 
-        print(f"Feature with lowest PFI {pfi}:", feature_to_remove)
-        print("Weighted cross mean metric for baseline (all features):", cross_mean)
-        print("Complete summary_perm:\n", summary_perm)
-
-        # Save detailed differences and summary CSV files.
         details_path = os.path.join(
             save_path, f"{step_name}_{estimator_name}_{mode}_permutation_details.csv"
         )
@@ -566,9 +695,9 @@ def select_features(
             save_path,
             f"{step_name}_summary_{estimator_name}_{mode}_permutation_results.csv",
         )
-        print("Saving diff_df to:", details_path)
+        print("Saving permutation details to:", details_path)
         diff_df.to_csv(details_path, index=False)
-        print("Saving summary_perm to:", summary_path)
+        print("Saving permutation summary to:", summary_path)
         summary_perm.to_csv(summary_path, index=False)
 
         return pfi, feature_to_remove, cross_mean
