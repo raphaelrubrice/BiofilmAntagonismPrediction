@@ -4,9 +4,9 @@ Code for the paper :
 
 ### **📌 Abstract**
 Biofilms are structured microbial communities that promote cell interactions through close spatial organization, leading to cooperative or competitive behaviors. 
-Predicting microbial interactions in biofilms could aid in developing innovative strategies to control undesirable bacteria. Here, we present a machine learning approach to predict the antagonistic effects of beneficial bacterial candidates _Bacillus_ and _Paenibacillus_ species against undesirable bacteria (_Staphylococcus aureus_, _Enterococcus cecorum_, _Escherichia coli_ and _Salmonella enterica_), based on the morphological descriptors of single-species biofilms. 
+Predicting microbial interactions in biofilms could aid in developing innovative strategies to control undesirable bacteria. Here, we present a machine learning approach to predict the antagonistic effects of beneficial bacterial candidates \textit{Bacillus} and \textit{Paenibacillus} species against undesirable bacteria (\textit{Staphylococcus aureus}, \textit{Enterococcus cecorum}, \textit{Escherichia coli} and \textit{Salmonella enterica}), based on the morphological descriptors of single-species biofilms. 
 We trained the models using quantitative features (e.g. biofilm volume, thickness, roughness or substratum coverage). As a proxy for antagonism, an exclusion score was used as the supervised training target. The latter was calculated based on the ratio of biofilm volume between the undesirable bacteria growing and the beneficial strain. 
-Among the tested models, the XGBoost algorithm demonstrated the highest accuracy. The resulting model analysis highlights the importance of biofilm formation context when predicting antagonism. 
+Among the tested models, the LGBMRegressor algorithm demonstrated the highest mean absolute error. We then use diverse explainability methods to analyze the resulting model. The analysis highlights the importance of biofilm formation context when predicting antagonism. 
 Our results demonstrate that machine learning can provide an efficient, data-driven tool to predict microbial interactions within biofilms and support the selection of beneficial strains for biofilm control. This approach enables scalable screening of microbial interactions, applicable in agriculture, healthcare, and industrial microbiology.
 
 ---
@@ -15,8 +15,7 @@ Our results demonstrate that machine learning can provide an efficient, data-dri
 
 ### **📌 Prerequisites**
 - **GPU Access:** Required for optimal performance
-- **CUDA-Compatible GPU:** Needed for accelerated training with LightGBM and other models
-- **CUDA Built LightGBM:** Ensure you have a CUDA-enabled version of LightGBM installed
+- **CUDA-Compatible GPU:** Needed for accelerated training and preprocessing.
 
 ### **🔧 Setting Up the Environment**
 
@@ -55,27 +54,57 @@ Ensure the output points to a CUDA-enabled LightGBM installation.
 
 ## **🚀 Running Experiments**
 
-### **1️⃣ Create Hold-Out and Cross-Validation Sets**
+### **Create Hold-Out and Cross-Validation Sets**
 ```sh
-python datasets.py --methods avg random combinatoric --mode cv
-python datasets.py --methods avg random combinatoric --mode ho
+python datasets.py --methods avg random combinatoric --mode 1
 ```
 
-### **2️⃣ Model Selection & Training**
+### **Model Selection & Training**
 ```sh
 python model_selection.py --run 1 --concat_results 1 --mode ho
+python analysis_plots.py "plot_model_selection"
+python analysis_plots.py "summary_model_selection"
 ```
 
-### **3️⃣ Preprocessing Selection**
+### **Preprocessing Selection**
 ```sh
 python preprocess_selection.py --run 1 --concat_results 1 --mode ho
+python analysis_plots.py "summary_preprocess_selection"
 ```
 
-### **4️⃣ Generate and Save Figures**
+### **Native feature selection**
 ```sh
-python plots.py --metrics MAE RMSE R2 --methods avg random combinatoric --plot_model_selection 1 --plot_preprocess_selection 1
+python native_feature_selection.py
+python analysis_plots.py "plot_native_feature_selection"
+```
+### **Feature engineering and selection**
+```sh
+python feature_engineering.py
+python analysis_plots.py "plot_feature_engineering"
 ```
 
+### **Hyperparameter search**
+```sh
+python optuna_campaign.py
+python analysis_plots.py "plot_optuna_study"
+```
+
+### **Ablation study**
+```sh
+python ablation_study.py
+python analysis_plots.py "plot_ablation_study"
+```
+
+### **Error analysis**
+```sh
+python analysis_plots.py "plot_err_distrib"
+python analysis_plots.py "plot_err_by_org"
+```
+### **SHAP values**
+```sh
+python analysis_plots.py "plot_global_SHAP"
+python analysis_plots.py "plot_local_SHAP"
+```
 ---
 
 ## **📊 Figures**
@@ -91,6 +120,3 @@ If you use this work, please cite our paper:
 For questions or issues, open an issue in this repository or contact **[Your Name]**.
 
 ---
-
-🎯 *Happy reviewing!* 🚀
-
