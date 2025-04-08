@@ -109,10 +109,10 @@ Figures will be saved in the `Plots/` directory after running the scripts.
 ---
 
 ## **📫 Contact & Citation**
-If you use this work, please cite our paper:
+You can cite our work as:
 
-> **[Your Paper Citation Here]**
+> **[Not yet]**
 
-For questions or issues, open an issue in this repository or contact **[Your Name]**.
+For questions contact `raphael.rubrice@agroparistech.fr`.
 
 ---
