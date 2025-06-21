@@ -828,7 +828,7 @@ def select_features(
 
 def load_best_hyperparams(path_optuna: str = None, path_ref_score: str = None):
     if path_optuna is None:
-        path_optuna = "./Results/optuna_campaign/optuna_study.pkl", 
+        path_optuna = "./Results/optuna_campaign/optuna_study.pkl"
     if path_ref_score is None:
         path_ref_score = "./Results/feature_engineering/best_score.pkl"
 
