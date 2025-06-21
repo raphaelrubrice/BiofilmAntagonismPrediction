@@ -74,3 +74,8 @@ if __name__ == '__main__':
                     temp_folder="./temp_results",
                 )
             results.to_csv(f"Results/nan_exp/ho_{nan_flag}_{model_name}_results.csv")
+
+            del results
+            gc.collect()
+            cp.get_default_memory_pool().free_all_blocks()
+    del combinatoric_df, df_dict
