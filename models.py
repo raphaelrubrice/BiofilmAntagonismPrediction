@@ -61,14 +61,14 @@ class StratifiedRegressor(BaseEstimator):
     """
     Implements stratified regression using the provided estimator.
     """
-    def __init__(self, instantiated_estimator, 
+    def __init__(self, base_estimator, 
                  mode: str = 'quantile', 
                  ranges: list = [0.2, 0.4, 0.6, 0.8],
                  n_jobs: int = 1,
                  parallel: bool = True,
                  random_state: int = 6262):
         super().__init__()
-        self.base_estimator = instantiated_estimator
+        self.base_estimator = base_estimator
         self.mode = mode
         if self.mode != 'quantile':
             assert ranges is not None, f"You must specify ranges when not using quantile mode"
