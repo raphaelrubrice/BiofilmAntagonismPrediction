@@ -91,9 +91,10 @@ class StratifiedRegressor(BaseEstimator):
             print(f"\nQuantile ranges are: {self.ranges}")
             
         splitted['class1'] = (X_strat[y_strat < self.ranges[0]],y_strat[y_strat < self.ranges[0]])
-        for i, val in enumerate(self.ranges):
+        for i, val in enumerate(self.ranges[1:]):
+            i += 1
             mask = (y_strat >= self.ranges[i - 1]) & (y_strat < val)
-            splitted[f'class{i}'] = (X_strat[mask],y_strat[mask])
+            splitted[f'class{i+1}'] = (X_strat[mask],y_strat[mask])
         splitted[f'class{len(self.ranges)}'] = (X_strat[y_strat >= self.ranges[-1]],y_strat[y_strat >= self.ranges[-1]])
         return splitted
     
