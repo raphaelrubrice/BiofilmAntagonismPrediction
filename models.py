@@ -57,7 +57,7 @@ class NaNFilter(TransformerMixin):
         self.fit(X, y=y, **fit_params)
         return self.transform(X)
     
-class StartifiedRegressor(BaseEstimator):
+class StratifiedRegressor(BaseEstimator):
     """
     Implements stratified regression using the provided estimator.
     """
