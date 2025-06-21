@@ -167,7 +167,7 @@ def fit_submodel(base_estimator, X, Y):
 def predict_submodel(estimator, X):
     return estimator.predict(X)
 
-def BoosterWrapper():
+class BoosterWrapper:
     """
     Small wrapper to keep the code as is in other parts of the project 
     when using the startified regressor.
