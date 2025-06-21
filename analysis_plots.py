@@ -140,11 +140,6 @@ def compute_CI(
         return abs(low), abs(up)
 
 
-# Mettre en annexe le qq plot student pour dire que bien que loin
-# d'être parfait, l'alignement est correct. On peut donc faire
-# l'hypothese simplificatrice que notre distribution des scores
-# suit une loi de student, et donc utiliser cela pour calculer les
-# intervalles de confiance en utilsant le coefficient de student.
 def check_qqplot(data, dist, save_path=None, show=False):
     avg = np.mean(data)
     std = np.std(data)
@@ -1357,9 +1352,7 @@ def plot_feature_importance_heatmap(path_model_folder=None, save_path=None, show
     file_list = [
         os.path.join(path_model_folder, f) for f in os.listdir(path_model_folder)
     ]
-    file_list = [
-        f for f in file_list if f.endswith(".txt") or f.endswith(".pkl")
-    ]  # Ensure only model files
+    file_list = [f for f in file_list if f.endswith(".txt")]  # Ensure only model files
 
     if not file_list:
         print("No valid LightGBM model files found in the directory.")
@@ -1382,6 +1375,7 @@ def plot_feature_importance_heatmap(path_model_folder=None, save_path=None, show
         plot_df[feature] = []
 
     # Collect feature importances for each model
+    print(file_list)
     for model_path in file_list:
         if model_file.endswith(".pkl"):
             with open(model_file, "rb") as f:
@@ -1748,23 +1742,23 @@ def check_empty(data, mask):
 
 def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     """
-    Produces two plots:
+    Generate two plots related to prediction errors:
 
-    1. A horizontal bar plot showing the average percentage of predictions
-       that fall under various absolute error thresholds, with error bars.
-       - The bars follow a green colormap gradient: "< 0.01" is the darkest green,
-         progressing to brighter green for "< 0.2". The ">= 0.2" bar is shown in red.
+    1. A horizontal bar plot showing the average percentage of predictions that fall
+       under various absolute error thresholds with 95% confidence intervals.
+       The bars use a green gradient for thresholds below 0.2 and red for ">= 0.2".
 
-    2. A vertical bar plot showing the average absolute error by predicted exclusion
-       score range, with error bars. The bar colors are set using a continuous colormap
-       (with an accompanying colorbar representing the True Scores Proportion).
-       A red horizontal reference line is drawn at 0.2 and labeled accordingly.
+    2. A vertical bar plot showing the average absolute error by predicted exclusion score range,
+       with error bars and a continuous colormap representing the true scores proportion.
+       A red horizontal reference line is drawn at 0.2.
 
     Parameters:
-    - path_df (str, optional): Path to CSV file containing ablation study results.
-    - ci_mode (str): Confidence interval calculation method.
+        path_df (str, optional): Path to a CSV file containing ablation study results.
+        ci_mode (str): Confidence interval calculation method (e.g. "bca").
+        save_path (str, optional): Path to save the figure as a PDF.
+        show (bool): If True, display the plots.
     """
-    # ---------------------- Part 1: Distribution of Errors ---------------------- #
+    # Part 1: Error distribution across hold-out folds.
     if path_df is None:
         results = pd.read_csv(
             "./Results/ablation_study/ho_None_LGBMRegressor_results.csv"
@@ -1772,7 +1766,7 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     else:
         results = pd.read_csv(path_df)
 
-    # Compute percentage of predictions under various error thresholds for each Hold-Out Fold.
+    # Calculate percentage of predictions below various error thresholds.
     plot_df = {
         "Hold-Out Fold": [],
         "< 0.01": [],
@@ -1786,39 +1780,31 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     for ho_name in results["Evaluation"]:
         try:
             method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
-
-            file_list = os.listdir("./Results/models/")
-            file_list = ["./Results/models/" + file for file in file_list]
+            file_list = [
+                "./Results/models/" + file for file in os.listdir("./Results/models/")
+            ]
             model_file = [file for file in file_list if ho_name in file][0]
-
             with open(model_file, "rb") as f:
                 pipeline = pkl.load(f)
-
             X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-
-            X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
-
+            # Preprocess X_test using the pipeline's preprocessing steps.
+            X_test = pipeline[:-1].transform(X_test)
             yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
         except Exception as e:
-            Warning("Using pickling failed, trying load_lgbm function..")
+            Warning("Pickle load failed; trying alternative load method...")
             pipeline, method_df, pkl_flag = load_lgbm_model(
                 "./Results/models/", "./Data/Datasets/fe_combinatoric_COI.csv", ho_name
             )
             X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-
             X_train = X_train[pipeline.feature_names_in_]
             X_test = X_test[pipeline.feature_names_in_]
-
             if not pkl_flag:
                 pipeline[:-1].fit(X_train)
             X_test = pipeline[:-1].transform(X_test)
-
             yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
-
         y_true = np.array(y_true).reshape(-1, 1)
         abs_err = np.abs(yhat - y_true)
         memory[ho_name] = {"yhat": yhat, "y_true": y_true}
-
         plot_df["Hold-Out Fold"].append(ho_name)
         plot_df["< 0.01"].append(np.mean(abs_err < 0.01))
         plot_df["< 0.05"].append(np.mean(abs_err < 0.05))
@@ -1847,15 +1833,13 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
         )
         low, up = abs(avg - low), abs(up - avg)
         final_plot_df["Absolute Error"].append(col)
-        final_plot_df["Percentage Of Predictions"].append(avg)
-        final_plot_df["CI95_low"].append(low)
-        final_plot_df["CI95_up"].append(up)
+        final_plot_df["Percentage Of Predictions"].append(avg*100)
+        final_plot_df["CI95_low"].append(low*100)
+        final_plot_df["CI95_up"].append(up*100)
     final_plot_df = pd.DataFrame(final_plot_df)
 
-    # Create custom colors:
-    # For thresholds other than ">= 0.2", use a green gradient.
-    # We use 5 shades from dark to light for "< 0.01" to "< 0.2".
-    greens = sns.color_palette("Greens_r", 5)  # dark -> light
+    # Define custom colors using a green gradient for error thresholds below 0.2 and red for ">= 0.2".
+    greens = sns.color_palette("Greens_r", 5)
     color_mapping = {
         "< 0.01": greens[0],
         "< 0.05": greens[1],
@@ -1866,9 +1850,7 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     }
     colors_plot1 = [color_mapping[val] for val in final_plot_df["Absolute Error"]]
 
-    # Set Seaborn theme
     sns.set_theme(style="whitegrid", context="talk")
-
     # Plot 1: Horizontal bar plot for error distribution.
     fig, ax = plt.subplots(figsize=(10, 6))
     sns.barplot(
@@ -1907,14 +1889,16 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     ax.set_ylabel("Percentage of Predictions", fontsize=14, fontweight="bold")
     plt.tight_layout()
     if save_path is not None:
-        if not save_path.endswith(".pdf"):
-            save_path_bis = save_path + "_distrib.pdf"
-            plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
+        save_path_bis = (
+            save_path + "_distrib.pdf"
+            if not save_path.endswith(".pdf")
+            else save_path.replace(".pdf", "_distrib.pdf")
+        )
+        plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
-    # ----------------- Part 2: Average Error vs. Predicted Score ----------------- #
-    # Compute average absolute error and proportion for different predicted score ranges.
+    # Part 2: Average absolute error by predicted exclusion score range.
     plot_df2 = {
         "Hold-Out Fold": [],
         "< 0.2": [],
@@ -1959,7 +1943,6 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
             else 0
         )
         n_sup_0_8 = 0 if sup_0_8 == 0 else np.mean(yhat >= 0.8)
-
         plot_df2["Hold-Out Fold"].append(ho_name)
         plot_df2["< 0.2"].append(_0_2)
         plot_df2["SIZE (< 0.2)"].append(n_0_2)
@@ -1983,7 +1966,6 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     for i in range(1, plot_df2.shape[1]):
         col_name = list(plot_df2.columns)[i]
         if not col_name.startswith("SIZE"):
-            print(plot_df2.iloc[:, i])
             avg = np.mean(plot_df2.iloc[:, i])
             if avg != 0:
                 low, up = compute_CI(
@@ -2007,7 +1989,7 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
             )
     final_plot_df2 = pd.DataFrame(final_plot_df2)
 
-    # Use a continuous colormap for the second plot based on True Scores Proportion
+    # Use a continuous colormap for bar colors based on True Scores Proportion.
     cmap = get_cmap("coolwarm")
     norm = Normalize(
         vmin=final_plot_df2["True Scores Proportion"].min(),
@@ -2015,7 +1997,7 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     )
     colors_plot2 = [cmap(norm(val)) for val in final_plot_df2["True Scores Proportion"]]
 
-    # Plot 2: Vertical bar plot
+    # Plot 2: Vertical bar plot for average error by predicted score range.
     fig, ax = plt.subplots(figsize=(10, 6))
     sns.barplot(
         data=final_plot_df2,
@@ -2048,16 +2030,12 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
             fontsize=12,
             fontweight="bold",
         )
-    # Add a red horizontal line at y = 0.2 with a label
     ax.axhline(0.2, linestyle="--", color="red", linewidth=2, label="Threshold: 0.2")
     ax.legend(loc="upper right", fontsize=12)
-
-    # Add a colorbar for the bar colors
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
     cbar = plt.colorbar(sm, ax=ax)
     cbar.set_label("True Scores Proportion", fontsize=14, fontweight="bold")
-
     ax.set_title(
         "Average Error vs. Predicted Exclusion Score Range",
         fontsize=16,
@@ -2067,14 +2045,30 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     ax.set_ylabel("Average Absolute Error", fontsize=14, fontweight="bold")
     plt.tight_layout()
     if save_path is not None:
-        if not save_path.endswith(".pdf"):
-            save_path_bis = save_path + "_true_scores.pdf"
-            plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
+        save_path_bis = (
+            save_path + "_true_scores.pdf"
+            if not save_path.endswith(".pdf")
+            else save_path.replace(".pdf", "_true_scores.pdf")
+        )
+        plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
 
 def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
+    """
+    Plot the mean absolute error (MAE) for different organism groups and a heatmap for interaction errors.
+
+    For Pathogen and Bacillus groups, this function computes 95% confidence intervals for MAE
+    and produces bar plots with error bars and labels. For the Interaction group, a heatmap is plotted.
+    A summary of the worst and best interaction predictions is printed.
+
+    Parameters:
+        path_df (str, optional): Path to a CSV file with ablation study results.
+        ci_mode (str): Confidence interval calculation method.
+        save_path (str, optional): Path to save the figures as PDFs.
+        show (bool): If True, display the plots.
+    """
     if path_df is None:
         results = pd.read_csv(
             "./Results/ablation_study/ho_None_LGBMRegressor_results.csv"
@@ -2086,29 +2080,26 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
     B_plot_df = results[results["Evaluation"].isin(ho_bacillus)]
     Int_plot_df = results[results["Evaluation"].isin(ho_interaction)]
 
+    # Compute confidence intervals for Pathogen and Bacillus groups.
     for df in [B_plot_df, P_plot_df]:
         ci_low = []
         ci_up = []
         for row in range(df.shape[0]):
             ho_name = df["Evaluation"].iloc[row]
-
             try:
                 method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
-
-                file_list = os.listdir("./Results/models/")
-                file_list = ["./Results/models/" + file for file in file_list]
+                file_list = [
+                    "./Results/models/" + file
+                    for file in os.listdir("./Results/models/")
+                ]
                 model_file = [file for file in file_list if ho_name in file][0]
-
                 with open(model_file, "rb") as f:
                     pipeline = pkl.load(f)
-
                 X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-
-                X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
-
+                X_test = pipeline[:-1].transform(X_test)
                 yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
             except Exception as e:
-                Warning("Using pickling failed, trying load_lgbm function..")
+                Warning("Pickle load failed; trying alternative load method...")
                 pipeline, method_df, pkl_flag = load_lgbm_model(
                     "./Results/models/",
                     "./Data/Datasets/fe_combinatoric_COI.csv",
@@ -2118,12 +2109,9 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
                 if not pkl_flag:
                     pipeline[:-1].fit(X_train)
                 X_test = pipeline[:-1].transform(X_test)
-
                 yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
-
             y_true = np.array(y_true).reshape(-1, 1)
             abs_err = np.abs(yhat - y_true)
-
             avg = np.mean(abs_err)
             low, up = compute_CI(
                 abs_err,
@@ -2139,12 +2127,10 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
         df["CI95_low"] = ci_low
         df["CI95_up"] = ci_up
 
+    # Create bar plots for Pathogen and Bacillus groups.
     fig, ax = plt.subplots(2, 1, figsize=(12, 10), sharey=True)
-
-    # Unification des couleurs avec viridis
     cmap = sns.color_palette("viridis_r", as_cmap=True)
 
-    # Pathogen MAE Bar Plot
     sns.barplot(
         P_plot_df,
         x="Evaluation",
@@ -2165,7 +2151,6 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
     ax[0].set_xlabel("Pathogen", fontsize=14, fontweight="bold")
     ax[0].set_ylabel("Mean Absolute Error", fontsize=14, fontweight="bold")
     ax[0].tick_params(axis="x", rotation=45)
-    # Add bar labels (in black) on top of each bar with ".3f" formatting.
     for patch in ax[0].patches:
         x_center = patch.get_x() + patch.get_width() / 2.0
         y_top = patch.get_height()
@@ -2182,7 +2167,6 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
         )
     ax[0].legend(loc="upper right", fontsize=12)
 
-    # Bacillus MAE Bar Plot
     sns.barplot(
         B_plot_df,
         x="Evaluation",
@@ -2203,8 +2187,6 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
     ax[1].set_xlabel("Bacillus", fontsize=14, fontweight="bold")
     ax[1].set_ylabel("Mean Absolute Error", fontsize=14, fontweight="bold")
     ax[1].tick_params(axis="x", rotation=45)
-
-    # Add bar labels (in white) at the center of each bar with ".3f" formatting.
     for patch in ax[1].patches:
         x_center = patch.get_x() + patch.get_width() / 2.0
         y_top = patch.get_height()
@@ -2220,16 +2202,19 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
             fontweight="bold",
         )
     ax[1].legend(loc="upper right", fontsize=12)
-    plt.suptitle("Model performances (MAE) by organism")
+    plt.suptitle("Model Performances (MAE) by Organism", fontsize=16, fontweight="bold")
     plt.tight_layout()
     if save_path is not None:
-        if not save_path.endswith(".pdf"):
-            save_path_bis = save_path + "_orgs.pdf"
-            plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
+        save_path_bis = (
+            save_path + "_orgs.pdf"
+            if not save_path.endswith(".pdf")
+            else save_path.replace(".pdf", "_orgs.pdf")
+        )
+        plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
-    # Interaction Heatmap
+    # Plot heatmap for Interaction group.
     plt.figure(figsize=(6, 20))
     Int_plot_df.set_index("Evaluation", inplace=True)
     sns.heatmap(
@@ -2245,13 +2230,15 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
     )
     plt.title("Interaction MAE Heatmap", fontsize=14, fontweight="bold")
     if save_path is not None:
-        if not save_path.endswith(".pdf"):
-            save_path_bis = save_path + "_int.pdf"
-            plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
+        save_path_bis = (
+            save_path + "_int.pdf"
+            if not save_path.endswith(".pdf")
+            else save_path.replace(".pdf", "_int.pdf")
+        )
+        plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
-    # Summary of Worst & Best Predictions
     worst_int, worst_mae = Int_plot_df["MAE"].idxmax(), Int_plot_df["MAE"].max()
     best_int, best_mae = Int_plot_df["MAE"].idxmin(), Int_plot_df["MAE"].min()
     print(
@@ -2269,27 +2256,37 @@ def plot_global_SHAP(
     save_path=None,
     show=False,
 ):
+    """
+    Plot global SHAP feature importance for a specified hold-out fold.
+
+    This function loads a model and dataset, computes SHAP values on the test set, and generates:
+      1. A bar plot of feature importances.
+      2. A summary plot of feature impacts on model outputs.
+
+    Parameters:
+        path_model_folder (str, optional): Folder containing model files.
+        path_df (str, optional): Path to the dataset CSV file.
+        ho_name (str): Hold-out fold identifier.
+        save_path (str, optional): Base path to save the plots as PDFs.
+        show (bool): If True, display the plots.
+    """
     try:
-        if path_df is None:
-            method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
-        else:
-            method_df = pd.read_csv(path_df)
-
-        if path_model_folder is None:
-            path_model_folder = "./Results/models/"
-
-        file_list = os.listdir(path_model_folder)
-        file_list = [path_model_folder + file for file in file_list]
+        method_df = (
+            pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
+            if path_df is None
+            else pd.read_csv(path_df)
+        )
+        path_model_folder = (
+            "./Results/models/" if path_model_folder is None else path_model_folder
+        )
+        file_list = [path_model_folder + file for file in os.listdir(path_model_folder)]
         model_file = [file for file in file_list if ho_name in file][0]
-
         with open(model_file, "rb") as f:
             pipeline = pkl.load(f)
-
         X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
-        X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
-
+        X_test = pipeline[:-1].transform(X_test)
     except Exception as e:
-        Warning("Using pickling failed, trying load_lgbm function..")
+        Warning("Pickle load failed; trying alternative load method...")
         pipeline, method_df, pkl_flag = load_lgbm_model(
             path_model_folder, path_df, ho_name
         )
@@ -2297,28 +2294,30 @@ def plot_global_SHAP(
         if not pkl_flag:
             pipeline[:-1].fit(X_train)
         X_test = pipeline[:-1].transform(X_test)
-
     explainer = shap.TreeExplainer(pipeline[-1])
     shap_values = explainer.shap_values(X_test)
-
     plt.figure(figsize=(12, 12))
     shap.plots.bar(explainer(X_test), show=False)
     plt.title("Feature Importances", fontsize=13, fontweight="bold")
     if save_path is not None:
-        if not save_path.endswith(".pdf"):
-            save_path += f"_importances_{ho_name}.pdf"
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+        sp = (
+            save_path + f"_importances_{ho_name}.pdf"
+            if not save_path.endswith(".pdf")
+            else save_path.replace(".pdf", f"_importances_{ho_name}.pdf")
+        )
+        plt.savefig(sp, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
-
     plt.figure(figsize=(10, 10))
-    shap.summary_plot(shap_values, X_test, show=False, plot_size=None)
-    plt.title("Feature value impact on model outputs", fontsize=13, fontweight="bold")
-
+    shap.summary_plot(shap_values, X_test, show=False)
+    plt.title("Feature Value Impact on Model Outputs", fontsize=13, fontweight="bold")
     if save_path is not None:
-        if not save_path.endswith(".pdf"):
-            save_path += f"_impact_{ho_name}.pdf"
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+        sp = (
+            save_path + f"_impact_{ho_name}.pdf"
+            if not save_path.endswith(".pdf")
+            else save_path.replace(".pdf", f"_impact_{ho_name}.pdf")
+        )
+        plt.savefig(sp, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
 
@@ -2331,241 +2330,64 @@ def plot_local_SHAP(
     save_path=None,
     show=False,
 ):
+    """
+    Generate a local SHAP explanation for a single prediction.
+
+    The function loads the model and data for a specified hold-out fold, computes predictions,
+    and identifies either the worst or best prediction (based on absolute error). A SHAP waterfall plot
+    is generated to explain the selected prediction.
+
+    Parameters:
+        path_model_folder (str, optional): Folder containing model files.
+        path_df (str, optional): Path to the dataset CSV file.
+        ho_name (str): Hold-out fold identifier.
+        mode (str): "worst" to explain the prediction with the highest error or "best" for the lowest error.
+        save_path (str, optional): Base path to save the plot as a PDF.
+        show (bool): If True, display the plot.
+    """
     try:
-        if path_df is None:
-            method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
-        else:
-            method_df = pd.read_csv(path_df)
-
-        if path_model_folder is None:
-            path_model_folder = "./Results/models/"
-
-        file_list = os.listdir(path_model_folder)
-        file_list = [path_model_folder + file for file in file_list]
+        method_df = (
+            pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
+            if path_df is None
+            else pd.read_csv(path_df)
+        )
+        path_model_folder = (
+            "./Results/models/" if path_model_folder is None else path_model_folder
+        )
+        file_list = [path_model_folder + file for file in os.listdir(path_model_folder)]
         model_file = [file for file in file_list if ho_name in file][0]
-
         with open(model_file, "rb") as f:
             pipeline = pkl.load(f)
-
         X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
-
-        X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
-
+        X_test = pipeline[:-1].transform(X_test)
         yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
     except Exception as e:
-        Warning("Using pickling failed, trying load_lgbm function..")
+        Warning("Pickle load failed; trying alternative load method...")
         pipeline, method_df, pkl_flag = load_lgbm_model(
             path_model_folder, path_df, ho_name
         )
-
         X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
-
-        # Fit Preprocessing steps
         if not pkl_flag:
             pipeline[:-1].fit(X_train)
-        X_test = pipeline[:-1].transform(X_test)  # preprocess X_test
-
+        X_test = pipeline[:-1].transform(X_test)
         yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
-
     abs_err = np.abs(yhat - np.array(Y_test).reshape(-1, 1))
     idx = np.argmax(abs_err) if mode == "worst" else np.argmin(abs_err)
-
     explainer = shap.TreeExplainer(pipeline[-1])
     shap_values = explainer(X_test.iloc[idx : idx + 1, :])
     shap.plots.waterfall(shap_values[0], show=False)
-    plt.title(f"SHAP Explanation of the {mode} prediction.")
+    plt.title(
+        f"SHAP Explanation of the {mode} Prediction", fontsize=14, fontweight="bold"
+    )
     if save_path is not None:
-        if not save_path.endswith(".pdf"):
-            save_path += f"_{ho_name}_{mode}.pdf"
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+        sp = (
+            save_path + f"_{ho_name}_{mode}.pdf"
+            if not save_path.endswith(".pdf")
+            else save_path.replace(".pdf", f"_{ho_name}_{mode}.pdf")
+        )
+        plt.savefig(sp, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
-
-
-# Import Alibi explainers
-# from alibi.explainers import IntegratedGradients, Counterfactual
-
-
-# def prepare_alibi(path_model_folder=None, path_df=None, ho_name="1234_x_S.en"):
-#     """
-#     Loads the LightGBM model and dataset, creates a preprocessing pipeline,
-#     fits the pipeline on training data, transforms the test set, and returns:
-#       - the pipeline,
-#       - original test data (X_test, Y_test),
-#       - a prediction function (predict_fn) that wraps the pipeline,
-#       - the per-feature range (min, max) computed on the transformed test set.
-#     """
-#     from pipeline import create_pipeline
-
-#     # Set default model folder if needed
-#     if path_model_folder is None:
-#         path_model_folder = "./Results/models/"
-#     file_list = os.listdir(path_model_folder)
-#     file_list = [os.path.join(path_model_folder, file) for file in file_list]
-#     # Find the model file containing the given ho_name
-#     model_file = [file for file in file_list if ho_name in file][0]
-
-#     model = lgb.Booster(model_file=model_file)
-
-#     # Load dataset
-#     if path_df is None:
-#         method_df = pd.read_csv("./Data/Datasets/combinatoric_COI.csv")
-#     else:
-#         method_df = pd.read_csv(path_df)
-
-#     target = ["Score"]
-#     cat_cols = ["Modele"]
-#     remove_cols = ["Unnamed: 0", "B_sample_ID", "P_sample_ID", "Bacillus", "Pathogene"]
-#     num_cols = [
-#         col for col in method_df.columns if col not in cat_cols + remove_cols + target
-#     ]
-
-#     # Create pipeline (assumes your create_pipeline function returns a list-like pipeline
-#     # where the last element is the estimator and the rest are preprocessing steps)
-#     pipeline = create_pipeline(
-#         num_cols,
-#         cat_cols,
-#         imputer="KNNImputer",
-#         scaler="RobustScaler",
-#         estimator=model,
-#         model_name="LGBMRegressor",
-#     )
-
-#     # Retrieve train/test splits (assumes retrieve_data returns X_train, X_test, Y_train, Y_test)
-#     X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
-
-#     # Fit the preprocessing pipeline (exclude estimator) and transform test set
-#     pipeline[:-1].fit(X_train)
-#     # Transform X_test; if returned as an array, convert it to a DataFrame
-#     X_test_transf = pipeline[:-1].transform(X_test)
-#     if not isinstance(X_test_transf, pd.DataFrame):
-#         # Use column names from original training data
-#         X_test_transf = pd.DataFrame(X_test_transf, columns=X_train.columns)
-
-#     # Create a prediction function that applies the preprocessing before predicting.
-#     def predict_fn(x):
-#         # Expect x as a DataFrame; if not, try to convert it
-#         if not isinstance(x, pd.DataFrame):
-#             x = pd.DataFrame(x, columns=X_test_transf.columns)
-#         # Ensure prediction output is 2D (n_samples, 1)
-#         preds = pipeline[-1].predict(x)
-#         return np.atleast_2d(preds).T
-
-#     # Compute feature ranges on transformed test set for use in counterfactual search
-#     feat_min = X_test_transf.min().values
-#     feat_max = X_test_transf.max().values
-#     feature_range = np.vstack([feat_min, feat_max])
-
-#     return pipeline, X_test, Y_test, predict_fn, feature_range
-
-
-# def plot_local_alibi(
-#     path_model_folder=None,
-#     path_df=None,
-#     ho_name="1234_x_S.en",
-#     mode="worst",
-#     save_path=None,
-#     show=False,
-# ):
-#     """
-#     Generates a counterfactual for a given query instance using Alibi's Counterfactual
-#     explainer and visualizes the local changes between the original instance and the counterfactual.
-
-#     Parameters:
-#       - path_model_folder, path_df, ho_name: parameters for data/model loading.
-#       - mode (str): "worst" to select the instance with the highest prediction error,
-#                     "best" to select the instance with the lowest error.
-#       - save_path (str, optional): if provided, saves the figure.
-#       - show (bool): whether to display the plot.
-#     """
-#     # Prepare data, prediction function, and feature range
-#     pipeline, X_test, Y_test, predict_fn, feature_range = prepare_alibi(
-#         path_model_folder, path_df, ho_name
-#     )
-
-#     # Transform X_test to get features used by the model
-#     X_test_transf = pipeline[:-1].transform(X_test)
-#     if not isinstance(X_test_transf, pd.DataFrame):
-#         X_test_transf = pd.DataFrame(X_test_transf, columns=X_test.columns)
-
-#     # Make predictions on X_test_transf
-#     y_pred = predict_fn(X_test_transf).flatten()
-#     y_true = np.array(Y_test).flatten()
-#     abs_err = np.abs(y_pred - y_true)
-
-#     # Select query instance based on error
-#     idx = np.argmax(abs_err) if mode == "worst" else np.argmin(abs_err)
-#     query_instance = X_test_transf.iloc[[idx]].copy()
-#     target_value = y_true[idx]
-#     print(f"Target value (true): {target_value}")
-#     print("Query instance dtypes:\n", query_instance.dtypes)
-
-#     # Set tolerance for counterfactual target proximity
-#     tol = 0.05
-
-#     # Initialize the Alibi Counterfactual explainer.
-#     # Note: For a regression task, target is set to the desired output value.
-#     cf_explainer = Counterfactual(
-#         predict_fn,
-#         shape=(1, X_test_transf.shape[1]),
-#         target=target_value,
-#         tol=tol,
-#         feature_range=feature_range,
-#         max_iter=1000,
-#         lam_init=1e-1,
-#         verbose=True,
-#         early_stop=50,
-#     )
-
-#     # Generate counterfactual for the query instance
-#     explanation = cf_explainer.explain(query_instance.to_numpy())
-
-#     if explanation.cf is None:
-#         raise ValueError("No counterfactual found.")
-
-#     # Retrieve counterfactual and convert to DataFrame
-#     cf_instance = pd.DataFrame(explanation.cf, columns=query_instance.columns)
-
-#     # Create a comparison table: original, counterfactual, and absolute differences.
-#     comp_df = query_instance.reset_index(drop=True).T.copy()
-#     comp_df.columns = ["Original"]
-#     comp_df["Counterfactual"] = cf_instance.T.iloc[:, 0]
-#     comp_df["Absolute Difference"] = (
-#         comp_df["Counterfactual"] - comp_df["Original"]
-#     ).abs()
-
-#     # Plot the table as a heatmap for differences.
-#     plt.figure(figsize=(10, max(4, 0.4 * len(comp_df))))
-#     # We display the absolute differences as a heatmap
-#     ax = sns.heatmap(
-#         comp_df[["Absolute Difference"]],
-#         annot=True,
-#         fmt=".3f",
-#         cmap="RdBu_r",
-#         cbar_kws={"label": "Absolute Difference"},
-#         linewidths=0.5,
-#         linecolor="black",
-#         yticklabels=comp_df.index,
-#     )
-#     plt.title(
-#         "Local Counterfactual Explanation (Alibi)", fontsize=16, fontweight="bold"
-#     )
-#     plt.ylabel("Features", fontsize=14, fontweight="bold")
-#     plt.xlabel("")
-#     plt.tight_layout()
-
-#     if save_path is not None:
-#         if not save_path.endswith(".pdf"):
-#             save_path += f"_{ho_name}_{mode}.pdf"
-#         plt.savefig(save_path, format="pdf", bbox_inches="tight")
-#     if show:
-#         plt.show()
-
-#     # Also print the comparison table
-#     print("Comparison of Original and Counterfactual:")
-#     print(comp_df)
-
-#     return explanation, comp_df
 
 
 if __name__ == "__main__":
@@ -2755,27 +2577,3 @@ if __name__ == "__main__":
             save_path="./Plots/local_SHAP",
             show=False,
         )
-    # elif plot_type == "plot_global_DiCE":
-    #     print("Running plot_global_DiCE and saving to ./Plots/global_DiCE.pdf")
-    #     plot_global_DiCE(
-    #         ho_name="1234_x_S.en", save_path="./Plots/global_DiCE", show=False
-    #     )
-    # elif plot_type == "plot_local_DiCE":
-    #     print(
-    #         "Running plot_local_DiCE (worst) and saving to ./Plots/local_DiCE_worst.pdf"
-    #     )
-    #     plot_local_DiCE(
-    #         ho_name="1234_x_S.en",
-    #         mode="worst",
-    #         save_path="./Plots/local_DiCE",
-    #         show=False,
-    #     )
-    #     print(
-    #         "Running plot_local_DiCE (best) and saving to ./Plots/local_DiCE_best.pdf"
-    #     )
-    #     plot_local_DiCE(
-    #         ho_name="1234_x_S.en",
-    #         mode="best",
-    #         save_path="./Plots/local_DiCE",
-    #         show=False,
-    #     )

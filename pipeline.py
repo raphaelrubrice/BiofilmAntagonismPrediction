@@ -16,6 +16,7 @@ from datasets import (
     make_feature_engineered_dataset,
 )
 from utils import is_gpu_available
+from models import NaNFilter, StratifiedRegressor
 
 from cuml.neighbors import KNeighborsRegressor
 from cuml.ensemble import RandomForestRegressor as gpuRandomForestRegressor
@@ -84,6 +85,7 @@ def create_pipeline(
     scaler="StandardScaler",
     estimator=None,
     model_name="Regressor",
+    scaler_nan_filter=False,
 ):
     # Mapping for numerical imputers
     if is_gpu_available():
@@ -105,27 +107,41 @@ def create_pipeline(
         "LinearRegressorImputer": linear_regressor_imputer,
     }
 
-    scaler_map = {
-        "StandardScaler": StandardScaler(),
-        "MinMaxScaler": MinMaxScaler(),
-        "RobustScaler": RobustScaler(),  # Uses median and IQR
-        "MaxAbsScaler": MaxAbsScaler(),
-    }
-
-    # Pipeline for numerical features
-    if scaler is not None:
-        num_pipeline = Pipeline(
-            [("imputer", imputer_map[imputer]), ("scaler", scaler_map[scaler])]
-        )
+    if scaler_nan_filter and imputer is None:
+        scaler_map = {
+            "StandardScaler": NaNFilter(StandardScaler()),
+            "MinMaxScaler": NaNFilter(MinMaxScaler()),
+            "RobustScaler": NaNFilter(RobustScaler()),  # Uses median and IQR
+            "MaxAbsScaler": NaNFilter(MaxAbsScaler()),
+        }
+        # Pipeline for numerical features
+        if scaler is not None:
+            num_pipeline = Pipeline([("scaler", scaler_map[scaler])])
+        else:
+            num_pipeline = None
     else:
-        num_pipeline = Pipeline([("imputer", imputer_map[imputer])])
+        scaler_map = {
+            "StandardScaler": StandardScaler(),
+            "MinMaxScaler": MinMaxScaler(),
+            "RobustScaler": RobustScaler(),  # Uses median and IQR
+            "MaxAbsScaler": MaxAbsScaler(),
+        }
+
+        # Pipeline for numerical features
+        if scaler is not None:
+            num_pipeline = Pipeline(
+                [("imputer", imputer_map[imputer]), ("scaler", scaler_map[scaler])]
+            )
+        else:
+            num_pipeline = Pipeline([("imputer", imputer_map[imputer])])
 
     # Pipeline for categorical features: impute missing values and OneHotEncode
     cat_pipeline = Pipeline([("onehot", OneHotEncoder(sparse_output=False))])
 
+    transformer_pipe = [("cat", cat_pipeline, cat_cols)] if num_pipeline is None else [("num", num_pipeline, num_cols), ("cat", cat_pipeline, cat_cols)]
     # Combine both pipelines using a ColumnTransformer
     preprocessor = ColumnTransformer(
-        transformers=[("num", num_pipeline, num_cols), ("cat", cat_pipeline, cat_cols)],
+        transformers=transformer_pipe,
         verbose_feature_names_out=False,
     )
 
@@ -809,3 +825,82 @@ def select_features(
     #     )
 
     #     return best_ablation_score, best_ablation[4:]
+
+def load_best_hyperparams(path_optuna: str = None, path_ref_score: str = None):
+    if path_optuna is None:
+        path_optuna = "./Results/optuna_campaign/optuna_study.pkl", 
+    if path_ref_score is None:
+        path_ref_score = "./Results/feature_engineering/best_score.pkl"
+
+    # Retrieve optuna campaign best params
+    with open(path_optuna, "rb") as f:
+        study = pkl.load(f)
+        best_params = study.best_trial.params
+
+    with open(path_ref_score, "rb") as f:
+        ref_score = pkl.load(f)
+
+    if study.best_trial.value >= ref_score:
+        # default values
+        print("Default yielded better results.. Using Default parameters")
+        best_params = {}
+    return best_params
+
+def load_best_model(model_class, load_path_kwargs={}):
+    best_params = load_best_hyperparams(**load_path_kwargs)
+
+    best_params["force_col_wise"] = True
+    best_params["random_state"] = 62
+    best_params['n_jobs'] = 1
+    best_params["tree_learner"] = 'serial'
+    best_params["verbose_eval"] = False
+    best_params['verbose'] = -1
+    return model_class(**best_params)
+
+def make_best_estimator(model_class, model_name,
+                        stratified=False, 
+                        stratify_params={},
+                        no_imputation=False,
+                        path_dataset="Data/Datasets/fe_combinatoric_COI.csv", 
+                        load_path_kwargs={}):
+    combinatoric_df = pd.read_csv(path_dataset)
+    df_dict = {"combinatoric": combinatoric_df}
+
+    target = ["Score"]
+    cat_cols = ["Modele"]
+    remove_cols = [
+        "Unnamed: 0",
+        "Unnamed: 0.1",
+        "B_sample_ID",
+        "P_sample_ID",
+        "Bacillus",
+        "Pathogene",
+    ]
+    num_cols = [
+        col
+        for col in df_dict["combinatoric"].columns
+        if col not in cat_cols + remove_cols + target
+    ]
+
+    best_model = load_best_model(model_class, load_path_kwargs)
+    if stratified:
+        best_model = StratifiedRegressor(best_model, **stratify_params)
+
+    if no_imputation:
+        return create_pipeline(
+                num_cols,
+                cat_cols,
+                imputer=None,
+                scaler="RobustScaler",
+                estimator=best_model,
+                model_name=model_name,
+                scaler_nan_filter=True,
+            )
+    return create_pipeline(
+                num_cols,
+                cat_cols,
+                imputer="KNNImputer",
+                scaler="RobustScaler",
+                estimator=best_model,
+                model_name=model_name,
+            )
