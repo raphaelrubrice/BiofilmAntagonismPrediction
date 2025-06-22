@@ -26,6 +26,8 @@ if __name__ == '__main__':
         for col in df_dict["combinatoric"].columns
         if col not in cat_cols + remove_cols + target
     ]
+    os.makedirs("./Results/reco_exp/impute_bias/", exist_ok=True)
+
     for stratify in [True, False]:
         if stratify:
             strat_params = {'mode':'quantile', 
@@ -34,18 +36,20 @@ if __name__ == '__main__':
             prefix = 'Stratified'
         else:
             strat_params = {}
-            prefix = ''
-        for nan_flag in ['withNaN', 'noNaN']:
+            prefix = 'Normal'
+        for nan_flag in ['NoImpute', 'Impute']:
             model_class = LGBMRegressor
             model_name = prefix + 'LGBMRegressor'
 
-            if nan_flag == 'withNaN':
+            if nan_flag == 'NoImpute':
                 estimator = make_best_estimator(model_class, 
                                                 model_name,
                                                 stratified=stratify, 
                                                 stratify_params=strat_params, 
                                                 no_imputation=True)
             else:
+                if prefix == 'Normal':
+                    strat_params["parallel"] = False
                 estimator = make_best_estimator(model_class,
                                                 model_name,
                                                 stratified=stratify, 
@@ -56,9 +60,12 @@ if __name__ == '__main__':
                 # 2 * 6 => 12 threads under the hood
             else:
                 outer_threads = 12
+
+            save_models_path = f"./Results/reco_exp_models/impute_bias/"
+            os.makedirs(save_models_path, exist_ok=True)
             results = evaluate(
                     estimator,
-                    nan_flag + model_name,
+                    nan_flag + '_' + model_name,
                     df_dict,
                     mode="ho",
                     suffix="_hold_outs.pkl",
@@ -66,14 +73,14 @@ if __name__ == '__main__':
                     target=target,
                     remove_cols=remove_cols,
                     save=True,
-                    save_path="./Results/models/",
+                    save_path=save_models_path,
                     parallel=True,
                     n_jobs_outer=outer_threads,
                     n_jobs_model=1,
                     batch_size=outer_threads,
                     temp_folder="./temp_results",
                 )
-            results.to_csv(f"Results/nan_exp/ho_{nan_flag}_{model_name}_results.csv")
+            results.to_csv(f"Results/reco_exp/impute_bias/ho_{nan_flag}_{model_name}_results.csv")
 
             del results
             gc.collect()

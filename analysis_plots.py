@@ -1488,66 +1488,69 @@ def plot_ablation_study(
 
     # Map file names to human-readable ablation names using check_isin
     keys = [check_isin(file) for file in file_list]
-    # Initialize plot DataFrame
-    addon = "Weighted " if weighted else ""
-    plot_df = {
-        "Features": [],
-        addon + "RMSE": [],
-        addon + "MAE": [],
-        "RMSE_CI95_low": [],
-        "RMSE_CI95_up": [],
-        "MAE_CI95_low": [],
-        "MAE_CI95_up": [],
-    }
+    # # Initialize plot DataFrame
+    # addon = "Weighted " if weighted else ""
+    # plot_df = {
+    #     "Features": [],
+    #     addon + "RMSE": [],
+    #     addon + "MAE": [],
+    #     "RMSE_CI95_low": [],
+    #     "RMSE_CI95_up": [],
+    #     "MAE_CI95_low": [],
+    #     "MAE_CI95_up": [],
+    # }
 
-    # Process each ablation file
-    for i, ablation in enumerate(file_list):
-        if keys[i] is not None:
-            df = pd.read_csv(os.path.join(path_ablation_folder, ablation))
-            # Compute weighted or mean RMSE & MAE
-            if weighted:
-                df[addon + "RMSE"] = (
-                    df["RMSE"] * df["n_samples"] / df["n_samples"].sum()
-                )
-                df[addon + "MAE"] = df["MAE"] * df["n_samples"] / df["n_samples"].sum()
-                rmse, mae = df[addon + "RMSE"].sum(), df[addon + "MAE"].sum()
-            else:
-                rmse, mae = df["RMSE"].mean(), df["MAE"].mean()
+    # # Process each ablation file
+    # for i, ablation in enumerate(file_list):
+    #     if keys[i] is not None:
+    #         df = pd.read_csv(os.path.join(path_ablation_folder, ablation))
+    #         # Compute weighted or mean RMSE & MAE
+    #         if weighted:
+    #             df[addon + "RMSE"] = (
+    #                 df["RMSE"] * df["n_samples"] / df["n_samples"].sum()
+    #             )
+    #             df[addon + "MAE"] = df["MAE"] * df["n_samples"] / df["n_samples"].sum()
+    #             rmse, mae = df[addon + "RMSE"].sum(), df[addon + "MAE"].sum()
+    #         else:
+    #             rmse, mae = df["RMSE"].mean(), df["MAE"].mean()
 
-            plot_df["Features"].append(keys[i])
-            plot_df[addon + "MAE"].append(mae)
-            plot_df[addon + "RMSE"].append(rmse)
+    #         plot_df["Features"].append(keys[i])
+    #         plot_df[addon + "MAE"].append(mae)
+    #         plot_df[addon + "RMSE"].append(rmse)
 
-            # Compute confidence intervals
-            func = weighted_stat_func if weighted else np.mean
-            # RMSE CI
-            low_r, up_r = compute_CI(
-                df[addon + "RMSE"],
-                num_iter=5000,
-                confidence=95,
-                seed=62,
-                stat_func=func,
-                mode=ci_mode,
-            )
-            avg_r = func(df[addon + "RMSE"])
-            low_r, up_r = abs(avg_r - low_r), abs(up_r - avg_r)
-            # MAE CI
-            low_m, up_m = compute_CI(
-                df[addon + "MAE"],
-                num_iter=5000,
-                confidence=95,
-                seed=62,
-                stat_func=func,
-                mode=ci_mode,
-            )
-            avg_m = func(df[addon + "MAE"])
-            low_m, up_m = abs(avg_m - low_m), abs(up_m - avg_m)
+    #         # Compute confidence intervals
+    #         func = weighted_stat_func if weighted else np.mean
+    #         # RMSE CI
+    #         low_r, up_r = compute_CI(
+    #             df[addon + "RMSE"],
+    #             num_iter=5000,
+    #             confidence=95,
+    #             seed=62,
+    #             stat_func=func,
+    #             mode=ci_mode,
+    #         )
+    #         avg_r = func(df[addon + "RMSE"])
+    #         low_r, up_r = abs(avg_r - low_r), abs(up_r - avg_r)
+    #         # MAE CI
+    #         low_m, up_m = compute_CI(
+    #             df[addon + "MAE"],
+    #             num_iter=5000,
+    #             confidence=95,
+    #             seed=62,
+    #             stat_func=func,
+    #             mode=ci_mode,
+    #         )
+    #         avg_m = func(df[addon + "MAE"])
+    #         low_m, up_m = abs(avg_m - low_m), abs(up_m - avg_m)
 
-            plot_df["RMSE_CI95_low"].append(low_r)
-            plot_df["RMSE_CI95_up"].append(up_r)
-            plot_df["MAE_CI95_low"].append(low_m)
-            plot_df["MAE_CI95_up"].append(up_m)
-
+    #         plot_df["RMSE_CI95_low"].append(low_r)
+    #         plot_df["RMSE_CI95_up"].append(up_r)
+    #         plot_df["MAE_CI95_low"].append(low_m)
+    #         plot_df["MAE_CI95_up"].append(up_m)
+    addon, plot_df = get_performances(file_list, path_ablation_folder, 
+                               weighted=weighted, 
+                               ci_mode=ci_mode)
+    plot_df["Feature"] = keys
     # Convert to DataFrame
     plot_df = pd.DataFrame(plot_df)
 
@@ -2086,30 +2089,33 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
         ci_up = []
         for row in range(df.shape[0]):
             ho_name = df["Evaluation"].iloc[row]
-            try:
-                method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
-                file_list = [
-                    "./Results/models/" + file
-                    for file in os.listdir("./Results/models/")
-                ]
-                model_file = [file for file in file_list if ho_name in file][0]
-                with open(model_file, "rb") as f:
-                    pipeline = pkl.load(f)
-                X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-                X_test = pipeline[:-1].transform(X_test)
-                yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
-            except Exception as e:
-                Warning("Pickle load failed; trying alternative load method...")
-                pipeline, method_df, pkl_flag = load_lgbm_model(
-                    "./Results/models/",
-                    "./Data/Datasets/fe_combinatoric_COI.csv",
-                    ho_name,
-                )
-                X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-                if not pkl_flag:
-                    pipeline[:-1].fit(X_train)
-                X_test = pipeline[:-1].transform(X_test)
-                yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+            _, _, yhat, y_true = make_inference(ho_name,
+                                        method_df_path="./Data/Datasets/fe_combinatoric_COI.csv",
+                                        models_folder="./Results/models/")
+            # try:
+            #     method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
+            #     file_list = [
+            #         "./Results/models/" + file
+            #         for file in os.listdir("./Results/models/")
+            #     ]
+            #     model_file = [file for file in file_list if ho_name in file][0]
+            #     with open(model_file, "rb") as f:
+            #         pipeline = pkl.load(f)
+            #     X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
+            #     X_test = pipeline[:-1].transform(X_test)
+            #     yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+            # except Exception as e:
+            #     Warning("Pickle load failed; trying alternative load method...")
+            #     pipeline, method_df, pkl_flag = load_lgbm_model(
+            #         "./Results/models/",
+            #         "./Data/Datasets/fe_combinatoric_COI.csv",
+            #         ho_name,
+            #     )
+            #     X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
+            #     if not pkl_flag:
+            #         pipeline[:-1].fit(X_train)
+            #     X_test = pipeline[:-1].transform(X_test)
+            #     yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
             y_true = np.array(y_true).reshape(-1, 1)
             abs_err = np.abs(yhat - y_true)
             avg = np.mean(abs_err)
@@ -2248,6 +2254,42 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
         f"Best Interaction: {best_int}, MAE = {best_mae:.3f} (n={Int_plot_df.loc[best_int]['n_samples']})"
     )
 
+def make_inference(ho_name,
+                    method_df_path="./Data/Datasets/fe_combinatoric_COI.csv",
+                    models_folder="./Results/models/",
+                    return_x_test_only=False
+                    ):
+    try:
+        method_df = pd.read_csv(method_df_path)
+        file_list = [
+            models_folder + file
+            for file in os.listdir(models_folder)
+        ]
+        model_file = [file for file in file_list if ho_name in file][0]
+        with open(model_file, "rb") as f:
+            pipeline = pkl.load(f)
+        X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
+        X_test = pipeline[:-1].transform(X_test)
+        if not return_x_test_only:
+            yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+        else:
+            yhat = None
+    except Exception as e:
+        Warning("Pickle load failed; trying alternative load method...")
+        pipeline, method_df, pkl_flag = load_lgbm_model(
+            models_folder,
+            method_df_path,
+            ho_name,
+        )
+        X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
+        if not pkl_flag:
+            pipeline[:-1].fit(X_train)
+        X_test = pipeline[:-1].transform(X_test)
+        if not return_x_test_only:
+            yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+        else:
+            yhat = None
+    return X_test, pipeline, yhat, y_true
 
 def plot_global_SHAP(
     path_model_folder=None,
@@ -2270,30 +2312,34 @@ def plot_global_SHAP(
         save_path (str, optional): Base path to save the plots as PDFs.
         show (bool): If True, display the plots.
     """
-    try:
-        method_df = (
-            pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
-            if path_df is None
-            else pd.read_csv(path_df)
-        )
-        path_model_folder = (
-            "./Results/models/" if path_model_folder is None else path_model_folder
-        )
-        file_list = [path_model_folder + file for file in os.listdir(path_model_folder)]
-        model_file = [file for file in file_list if ho_name in file][0]
-        with open(model_file, "rb") as f:
-            pipeline = pkl.load(f)
-        X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
-        X_test = pipeline[:-1].transform(X_test)
-    except Exception as e:
-        Warning("Pickle load failed; trying alternative load method...")
-        pipeline, method_df, pkl_flag = load_lgbm_model(
-            path_model_folder, path_df, ho_name
-        )
-        X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
-        if not pkl_flag:
-            pipeline[:-1].fit(X_train)
-        X_test = pipeline[:-1].transform(X_test)
+    X_test, pipeline, _, _ = make_inference(ho_name,
+                                        method_df_path="./Data/Datasets/fe_combinatoric_COI.csv",
+                                        models_folder="./Results/models/",
+                                        return_x_test_only=True)
+    # try:
+    #     method_df = (
+    #         pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
+    #         if path_df is None
+    #         else pd.read_csv(path_df)
+    #     )
+    #     path_model_folder = (
+    #         "./Results/models/" if path_model_folder is None else path_model_folder
+    #     )
+    #     file_list = [path_model_folder + file for file in os.listdir(path_model_folder)]
+    #     model_file = [file for file in file_list if ho_name in file][0]
+    #     with open(model_file, "rb") as f:
+    #         pipeline = pkl.load(f)
+    #     X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
+    #     X_test = pipeline[:-1].transform(X_test)
+    # except Exception as e:
+    #     Warning("Pickle load failed; trying alternative load method...")
+    #     pipeline, method_df, pkl_flag = load_lgbm_model(
+    #         path_model_folder, path_df, ho_name
+    #     )
+    #     X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
+    #     if not pkl_flag:
+    #         pipeline[:-1].fit(X_train)
+    #     X_test = pipeline[:-1].transform(X_test)
     explainer = shap.TreeExplainer(pipeline[-1])
     shap_values = explainer.shap_values(X_test)
     plt.figure(figsize=(12, 12))
@@ -2345,32 +2391,35 @@ def plot_local_SHAP(
         save_path (str, optional): Base path to save the plot as a PDF.
         show (bool): If True, display the plot.
     """
-    try:
-        method_df = (
-            pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
-            if path_df is None
-            else pd.read_csv(path_df)
-        )
-        path_model_folder = (
-            "./Results/models/" if path_model_folder is None else path_model_folder
-        )
-        file_list = [path_model_folder + file for file in os.listdir(path_model_folder)]
-        model_file = [file for file in file_list if ho_name in file][0]
-        with open(model_file, "rb") as f:
-            pipeline = pkl.load(f)
-        X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
-        X_test = pipeline[:-1].transform(X_test)
-        yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
-    except Exception as e:
-        Warning("Pickle load failed; trying alternative load method...")
-        pipeline, method_df, pkl_flag = load_lgbm_model(
-            path_model_folder, path_df, ho_name
-        )
-        X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
-        if not pkl_flag:
-            pipeline[:-1].fit(X_train)
-        X_test = pipeline[:-1].transform(X_test)
-        yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+    X_test, pipeline, yhat, Y_test = make_inference(ho_name,
+                                        method_df_path="./Data/Datasets/fe_combinatoric_COI.csv",
+                                        models_folder="./Results/models/")
+    # try:
+    #     method_df = (Weighted MAe
+    #         pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
+    #         if path_df is None
+    #         else pd.read_csv(path_df)
+    #     )
+    #     path_model_folder = (
+    #         "./Results/models/" if path_model_folder is None else path_model_folder
+    #     )
+    #     file_list = [path_model_folder + file for file in os.listdir(path_model_folder)]
+    #     model_file = [file for file in file_list if ho_name in file][0]
+    #     with open(model_file, "rb") as f:
+    #         pipeline = pkl.load(f)
+    #     X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
+    #     X_test = pipeline[:-1].transform(X_test)
+    #     yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+    # except Exception as e:
+    #     Warning("Pickle load failed; trying alternative load method...")
+    #     pipeline, method_df, pkl_flag = load_lgbm_model(
+    #         path_model_folder, path_df, ho_name
+    #     )
+    #     X_train, X_test, Y_train, Y_test = retrieve_data(method_df, ho_name)
+    #     if not pkl_flag:
+    #         pipeline[:-1].fit(X_train)
+    #     X_test = pipeline[:-1].transform(X_test)
+    #     yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
     abs_err = np.abs(yhat - np.array(Y_test).reshape(-1, 1))
     idx = np.argmax(abs_err) if mode == "worst" else np.argmin(abs_err)
     explainer = shap.TreeExplainer(pipeline[-1])
@@ -2389,6 +2438,154 @@ def plot_local_SHAP(
     if show:
         plt.show()
 
+def get_performances(file_list, results_folder, weighted=True, ci_mode='bca'):
+    addon = "Weighted " if weighted else ""
+    plot_df = {
+        addon + "RMSE": [],
+        addon + "MAE": [],
+        "RMSE_CI95_low": [],
+        "RMSE_CI95_up": [],
+        "MAE_CI95_low": [],
+        "MAE_CI95_up": [],
+    }
+
+    # Process each ablation file
+    for file_name in file_list:
+        df = pd.read_csv(os.path.join(results_folder, file_name))
+        # Compute weighted or mean RMSE & MAE
+        if weighted:
+            df[addon + "RMSE"] = (
+                df["RMSE"] * df["n_samples"] / df["n_samples"].sum()
+            )
+            df[addon + "MAE"] = df["MAE"] * df["n_samples"] / df["n_samples"].sum()
+            rmse, mae = df[addon + "RMSE"].sum(), df[addon + "MAE"].sum()
+        else:
+            rmse, mae = df["RMSE"].mean(), df["MAE"].mean()
+
+        plot_df[addon + "MAE"].append(mae)
+        plot_df[addon + "RMSE"].append(rmse)
+
+        # Compute confidence intervals
+        func = weighted_stat_func if weighted else np.mean
+        # RMSE CI
+        low_r, up_r = compute_CI(
+            df[addon + "RMSE"],
+            num_iter=5000,
+            confidence=95,
+            seed=62,
+            stat_func=func,
+            mode=ci_mode,
+        )
+        avg_r = func(df[addon + "RMSE"])
+        low_r, up_r = abs(avg_r - low_r), abs(up_r - avg_r)
+        # MAE CI
+        low_m, up_m = compute_CI(
+            df[addon + "MAE"],
+            num_iter=5000,
+            confidence=95,
+            seed=62,
+            stat_func=func,
+            mode=ci_mode,
+        )
+        avg_m = func(df[addon + "MAE"])
+        low_m, up_m = abs(avg_m - low_m), abs(up_m - avg_m)
+
+        plot_df["RMSE_CI95_low"].append(low_r)
+        plot_df["RMSE_CI95_up"].append(up_r)
+        plot_df["MAE_CI95_low"].append(low_m)
+        plot_df["MAE_CI95_up"].append(up_m)
+    return addon, plot_df
+
+# Plots for experiments following reviewer recommendations
+def get_impute_exp_name(string):
+    return string[string.index('ho_')+3:string.index('_results.csv')]
+
+def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
+    """
+    Plot average Weighted MAE for withNaN or noNaN (imputed) experiments with or without stratification
+    """
+    impute_bias_results = [pd.read_csv(file) for file in os.listdir("./Results/reco_exp/impute_bias/")]
+    # impute_bias_models = "./Results/reco_exp_models/impute_bias/"
+
+    # summary_df = {"Experiment":[], "MAE":[]}
+    # ci_low = []
+    # ci_up = []
+    # for df in impute_bias_results:
+    #     for row in range(df.shape[0]):
+    #         ho_name = df["Evaluation"].iloc[row]
+    #         _, _, yhat, y_true = make_inference(ho_name,
+    #                                     method_df_path="./Data/Datasets/fe_combinatoric_COI.csv",
+    #                                     models_folder=impute_bias_models)
+            
+    #     y_true = np.array(y_true).reshape(-1, 1)
+    #     abs_err = np.abs(yhat - y_true)
+    #     avg = np.mean(abs_err)
+    #     low, up = compute_CI(
+    #         abs_err,
+    #         num_iter=5000,
+    #         confidence=95,
+    #         seed=62,
+    #         stat_func=stat_func,
+    #         mode=ci_mode,
+    #     )
+    #     low, up = abs(low - avg), abs(up - avg)
+    #     ci_low.append(low)
+    #     ci_up.append(up)
+    #     summary_df["CI95_low"] = ci_low
+    #     summary_df["CI95_up"] = ci_up
+
+    addon, plot_df = get_performances(impute_bias_results, "./Results/reco_exp/impute_bias/", 
+                                      weighted=True, ci_mode='bca')
+    plot_df["Experiment"] = [get_impute_exp_name(file_name) for file_name in impute_bias_results]
+    imp_bias_strat = plot_df[addon + "MAE"][plot_df["Experiment" == "Impute_Stratified"]] - plot_df[addon + "MAE"][plot_df["Experiment" == "NoImpute_Stratified"]]
+    imp_bias_normal = plot_df[addon + "MAE"][plot_df["Experiment" == "Impute_Normal"]] - plot_df[addon + "MAE"][plot_df["Experiment" == "NoImpute_Normal"]]
+
+    # Create bar plots for Pathogen and Bacillus groups.
+    cmap = sns.color_palette("viridis_r", as_cmap=True)
+
+    bars = sns.barplot(
+        plot_df,
+        x="Experiment",
+        y=addon + "MAE",
+        palette="viridis",
+        edgecolor="black",
+    )
+    intervals = np.array([plot_df["MAE_CI95_low"], plot_df["MAE_CI95_up"]])
+    bars.errorbar(
+        x=np.arange(plot_df.shape[0]),
+        y=plot_df[addon + "MAE"],
+        yerr=intervals,
+        fmt="o",
+        capsize=5,
+        color="black",
+    )
+    plt.ylabel(addon + "Mean Absolute Error", fontsize=14, fontweight="bold")
+    bars.tick_params(axis="x", rotation=45)
+    for patch in bars.patches:
+        x_center = patch.get_x() + patch.get_width() / 2.0
+        y_top = patch.get_height()
+        label = f"{patch.get_height():.3f}"
+        bars.text(
+            x_center,
+            y_top + 0.01,
+            label,
+            ha="center",
+            va="bottom",
+            color="black",
+            fontsize=12,
+            fontweight="bold",
+        )
+    bars.legend(loc="upper right", fontsize=12)
+    plt.title(
+        f"Comparison of Weighted MAE with or without Imputation\nImputation bias with stratification {imp_bias_strat}, without {imp_bias_normal}", 
+        fontsize=14, 
+        fontweight="bold"
+    )
+    if save_path is not None:
+        save_path = save_path if save_path.endswith(".pdf") else save_path + ".pdf"
+        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+    if show:
+        plt.show()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate analysis plots.")
@@ -2410,6 +2607,7 @@ if __name__ == "__main__":
             "plot_local_SHAP",
             "plot_global_DiCE",
             "plot_local_DiCE",
+            "plot_impute_bias",
         ],
         help="Type of plot to generate.",
     )
@@ -2577,3 +2775,5 @@ if __name__ == "__main__":
             save_path="./Plots/local_SHAP",
             show=False,
         )
+    elif plot_type == "plot_impute_bias":
+        plot_impute_bias(save_path="./Plots/imputation_bias.pdf")
