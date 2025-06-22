@@ -2518,9 +2518,9 @@ def present_bias_dict(dico):
     for i, key in enumerate(dico.keys()):
         if "Sign" not in key:
             if i == 0:
-                string += f"Imputation bias for {key}: {dico["Sign_"+key]}{dico[key]:.3e}"
+                string += f"Imputation bias for {key}: {dico['Sign_'+key]}{dico[key]:.3e}"
             else:
-                string += f"\nImputation bias for {key}: {dico["Sign_"+key]}{dico[key]:.3e}"
+                string += f"\nImputation bias for {key}: {dico['Sign_'+key]}{dico[key]:.3e}"
     return string
     
 def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
