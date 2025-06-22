@@ -28,60 +28,64 @@ if __name__ == '__main__':
     ]
     os.makedirs("./Results/reco_exp/impute_bias/", exist_ok=True)
 
-    for stratify in [True, False]:
-        if stratify:
-            strat_params = {'mode':'quantile', 
-                            'ranges':[0.2, 0.4, 0.6, 0.8],
-                            'mixed_training':True,
-                            'random_state':6262}
-            prefix = 'Stratified'
-        else:
-            strat_params = {}
-            prefix = 'Normal'
-        for nan_flag in ['NoImpute', 'Impute']:
-            model_class = LGBMRegressor
-            model_name = prefix + 'LGBMRegressor'
+    for mode in ['Quantile', 'Custom']:
+        for mixed in [True, False]:
+            for stratify in [True, False]:
+                if stratify:
+                    strat_params = {'mode':mode.lower(), 
+                                    'ranges':[0.2, 0.4, 0.6, 0.8],
+                                    'mixed_training':mixed,
+                                    'random_state':6262}
+                    prefix = 'Stratified'
+                    mixed_addon = 'Mixed' if mixed else 'Default'
+                else:
+                    strat_params = {}
+                    prefix = 'Normal'
+                for nan_flag in ['NoImpute', 'Impute']:
+                    model_class = LGBMRegressor
+                    model_name = prefix + 'LGBMRegressor'
 
-            if nan_flag == 'NoImpute':
-                estimator = make_best_estimator(model_class, 
-                                                model_name,
-                                                stratified=stratify, 
-                                                stratify_params=strat_params, 
-                                                no_imputation=True)
-            else:
-                estimator = make_best_estimator(model_class,
-                                                model_name,
-                                                stratified=stratify, 
-                                                stratify_params=strat_params)
+                    if nan_flag == 'NoImpute':
+                        estimator = make_best_estimator(model_class, 
+                                                        model_name,
+                                                        stratified=stratify, 
+                                                        stratify_params=strat_params, 
+                                                        no_imputation=True)
+                    else:
+                        estimator = make_best_estimator(model_class,
+                                                        model_name,
+                                                        stratified=stratify, 
+                                                        stratify_params=strat_params)
 
-            if stratify:
-                outer_threads = 2
-                # 2 * 6 => 12 threads under the hood
-            else:
-                outer_threads = 12
+                    if stratify:
+                        outer_threads = 2
+                        # 2 * 6 => 12 threads under the hood
+                    else:
+                        outer_threads = 12
 
-            save_models_path = f"./Results/reco_exp_models/impute_bias/"
-            os.makedirs(save_models_path, exist_ok=True)
-            results = evaluate(
-                    estimator,
-                    nan_flag + '_' + model_name + '_',
-                    df_dict,
-                    mode="ho",
-                    suffix="_hold_outs.pkl",
-                    ho_folder_path="Data/Datasets/",
-                    target=target,
-                    remove_cols=remove_cols,
-                    save=True,
-                    save_path=save_models_path,
-                    parallel=True,
-                    n_jobs_outer=outer_threads,
-                    n_jobs_model=1,
-                    batch_size=outer_threads,
-                    temp_folder="./temp_results",
-                )
-            results.to_csv(f"Results/reco_exp/impute_bias/ho_{nan_flag}_{model_name}_results.csv")
+                    save_models_path = f"./Results/reco_exp_models/impute_bias/"
+                    os.makedirs(save_models_path, exist_ok=True)
+                    full_name = f"{nan_flag}_{mode}_{mixed}_{model_name}"
+                    results = evaluate(
+                            estimator,
+                            full_name + '_',
+                            df_dict,
+                            mode="ho",
+                            suffix="_hold_outs.pkl",
+                            ho_folder_path="Data/Datasets/",
+                            target=target,
+                            remove_cols=remove_cols,
+                            save=True,
+                            save_path=save_models_path,
+                            parallel=True,
+                            n_jobs_outer=outer_threads,
+                            n_jobs_model=1,
+                            batch_size=outer_threads,
+                            temp_folder="./temp_results",
+                        )
+                    results.to_csv(f"Results/reco_exp/impute_bias/ho_{full_name}_results.csv")
 
-            del results
-            gc.collect()
-            cp.get_default_memory_pool().free_all_blocks()
+                    del results
+                    gc.collect()
+                    cp.get_default_memory_pool().free_all_blocks()
     del combinatoric_df, df_dict

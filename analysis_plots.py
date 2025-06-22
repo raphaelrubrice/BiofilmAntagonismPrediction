@@ -2502,6 +2502,33 @@ def get_impute_exp_name(string):
     endstring = '_LGBMRegressor' if '_LGBMRegressor' in string else 'LGBMRegressor'
     return string[string.index('ho_')+3:string.index(endstring)]
 
+def make_exp_names(modes=['Quantile', 'Custom'], 
+                   protocol=['Mixed', 'Default'], 
+                   regressor=["Normal", "Stratified"]):
+    exp_names = []
+    for mode in modes:
+        for mixed in protocol:
+            for reg in regressor:
+                exp_names.append(f"{mode}_{mixed}_{reg}")
+    return exp_names
+
+def get_bias(df, mode, protocol, regressor, metric_col, exp_col="Experiment"):
+    with_imp = f"Impute_{mode}_{protocol}_{regressor}"
+    without_imp = f"NoImpute_{mode}_{protocol}_{regressor}"
+    imp_bias = df[metric_col][df[exp_col] == with_imp].item() - df[metric_col][df[exp_col] == without_imp].item()
+    sign_imp_bias = '+' if imp_bias > 0 else '-'
+    return imp_bias, sign_imp_bias
+
+def present_bias_dict(dico):
+    string = ""
+    for i, key in enumerate(dico.keys()):
+        if "Sign" not in key:
+            if i == 0:
+                string += f"Imputation bias for {key}: {dico["Sign_"+key]}{dico[key]:.3e}"
+            else:
+                string += f"\nImputation bias for {key}: {dico["Sign_"+key]}{dico[key]:.3e}"
+    return string
+    
 def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
     """
     Plot average Weighted MAE for withNaN or noNaN (imputed) experiments with or without stratification
@@ -2539,10 +2566,14 @@ def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
     addon, plot_df = get_performances(impute_bias_results, "./Results/reco_exp/impute_bias/", 
                                       weighted=True, ci_mode='bca')
     plot_df["Experiment"] = [get_impute_exp_name(file_name) for file_name in impute_bias_results]
-    imp_bias_strat = plot_df[addon + "MAE"][plot_df["Experiment"] == "Impute_Stratified"].item() - plot_df[addon + "MAE"][plot_df["Experiment"] == "NoImpute_Stratified"].item()
-    sign_imp_bias_strat = '+' if imp_bias_strat > 0 else '-'
-    imp_bias_normal = plot_df[addon + "MAE"][plot_df["Experiment"] == "Impute_Normal"].item() - plot_df[addon + "MAE"][plot_df["Experiment"] == "NoImpute_Normal"].item()
-    sign_imp_bias_normal = '+' if imp_bias_normal > 0 else '-'
+    bias_dict = {}
+    for mode in ['Quantile', 'Custom']:
+        for mixed in ['Mixed', 'Default']:
+            for reg in ["Normal", "Stratified"]:
+                bias, sign = get_bias(plot_df, mode, mixed, reg, addon + "MAE")
+                bias_dict[f"{mode}_{mixed}_{reg}"] = bias
+                bias_dict[f"Sign_{mode}_{mixed}_{reg}"] = sign
+
     # Create bar plots for Pathogen and Bacillus groups.
     cmap = sns.color_palette("viridis_r", as_cmap=True)
 
@@ -2579,7 +2610,7 @@ def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
             fontweight="bold",
         )
     plt.title(
-        f"Comparison of Weighted MAE with or without Imputation\nImputation bias with stratification: {sign_imp_bias_strat}{imp_bias_strat:.3e},\nwithout: {sign_imp_bias_normal}{imp_bias_normal:.3e}", 
+        f"Comparison of Weighted MAE with or without Imputation\n{present_bias_dict(bias_dict)}", 
         fontsize=14, 
         fontweight="bold"
     )
