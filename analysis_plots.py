@@ -2502,19 +2502,13 @@ def get_impute_exp_name(string):
     endstring = '_LGBMRegressor' if '_LGBMRegressor' in string else 'LGBMRegressor'
     return string[string.index('ho_')+3:string.index(endstring)]
 
-def make_exp_names(modes=['Quantile', 'Custom'], 
-                   protocol=['Mixed', 'Default'], 
-                   regressor=["Normal", "Stratified"]):
-    exp_names = []
-    for mode in modes:
-        for mixed in protocol:
-            for reg in regressor:
-                exp_names.append(f"{mode}_{mixed}_{reg}")
-    return exp_names
-
 def get_bias(df, mode, protocol, regressor, metric_col, exp_col="Experiment"):
-    with_imp = f"Impute_{mode}_{protocol}_{regressor}"
-    without_imp = f"NoImpute_{mode}_{protocol}_{regressor}"
+    if mode is not None and protocol is not None:
+        with_imp = f"Impute_{mode}_{protocol}_{regressor}"
+        without_imp = f"NoImpute_{mode}_{protocol}_{regressor}"
+    else:
+        with_imp = f"Impute_{regressor}"
+        without_imp = f"NoImpute_{regressor}"
     imp_bias = df[metric_col][df[exp_col] == with_imp].item() - df[metric_col][df[exp_col] == without_imp].item()
     sign_imp_bias = '+' if imp_bias > 0 else '-'
     return imp_bias, sign_imp_bias
@@ -2567,12 +2561,17 @@ def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
                                       weighted=True, ci_mode='bca')
     plot_df["Experiment"] = [get_impute_exp_name(file_name) for file_name in impute_bias_results]
     bias_dict = {}
-    for mode in ['Quantile', 'Custom']:
-        for mixed in ['Mixed', 'Default']:
-            for reg in ["Normal", "Stratified"]:
-                bias, sign = get_bias(plot_df, mode, mixed, reg, addon + "MAE")
-                bias_dict[f"{mode}_{mixed}_{reg}"] = bias
-                bias_dict[f"Sign_{mode}_{mixed}_{reg}"] = sign
+    for reg in ["Normal", "Stratified"]:
+        if reg == "Stratified":
+            for mode in ['Quantile', 'Custom']:
+                for mixed in ['Mixed', 'Default']:
+                    bias, sign = get_bias(plot_df, mode, mixed, reg, addon + "MAE")
+                    bias_dict[f"{mode}_{mixed}_{reg}"] = bias
+                    bias_dict[f"Sign_{mode}_{mixed}_{reg}"] = sign
+        else:
+            bias, sign = get_bias(plot_df, None, None, reg, addon + "MAE")
+            bias_dict[reg] = bias
+            bias_dict[f"Sign_{reg}"] = sign
 
     # Create bar plots for Pathogen and Bacillus groups.
     cmap = sns.color_palette("viridis_r", as_cmap=True)
