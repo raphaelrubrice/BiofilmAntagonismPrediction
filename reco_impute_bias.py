@@ -61,7 +61,7 @@ if __name__ == '__main__':
 
                         save_models_path = f"./Results/reco_exp_models/impute_bias/"
                         os.makedirs(save_models_path, exist_ok=True)
-                        full_name = f"{nan_flag}_{mode}_{mixed}_{model_name}"
+                        full_name = f"{nan_flag}_{mode}_{mixed_addon}_{model_name}"
                         results = evaluate(
                                 estimator,
                                 full_name + '_',
