@@ -118,14 +118,14 @@ class StratifiedRegressor(BaseEstimator):
 
     def mixed_fit(self, splitted, fit_params={}):
         X_train, Y_train = splitted['oracle']
-        self.estimators['oracle'] = fit_submodel(self.base_estimator, X_train, Y_train, fit_params)
+        self.estimators = {'oracle':fit_submodel(self.base_estimator, X_train, Y_train, fit_params)}
         mixed_splitted = {}
         for key, val in splitted.items():
             if key != 'oracle':
                 X_train, Y_train = val[0], val[1]
                 Y_oracle = self.estimators['oracle'].predict(X_train)
 
-                mixed_X_train = pd.concatenate([X_train, X_train], axis=0)
+                mixed_X_train = pd.concat([X_train, X_train], axis=0)
                 mixed_Y_train = np.concatenate([Y_train, Y_oracle], axis=0)
 
                 mixed_splitted[key] = (mixed_X_train, mixed_Y_train)
