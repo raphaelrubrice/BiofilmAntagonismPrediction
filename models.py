@@ -66,6 +66,7 @@ class StratifiedRegressor(BaseEstimator):
                  ranges: list = [0.2, 0.4, 0.6, 0.8],
                  n_jobs: int = 1,
                  parallel: bool = True,
+                 mixed_training: bool = False,
                  random_state: int = 6262):
         super().__init__()
         self.base_estimator = base_estimator
@@ -77,6 +78,7 @@ class StratifiedRegressor(BaseEstimator):
         self.random_state = random_state
         self.n_jobs = n_jobs # Per estimator threads
         self.parallel = parallel # Fit all estimators simultaneously
+        self.mixed_training = mixed_training
         self.__sklearn_tags__ = self.base_estimator.__sklearn_tags__
 
     def split(self, X, y):
@@ -99,12 +101,10 @@ class StratifiedRegressor(BaseEstimator):
         splitted[f'class{len(self.ranges)+1}'] = (X_strat[y_strat >= self.ranges[-1]],y_strat[y_strat >= self.ranges[-1]])
         return splitted
     
-    def fit(self, X, y, fit_params={}):
-        splitted = self.split(X, y)
-    
+    def default_fit(self, splitted, fit_params={}):
         if self.parallel:
             result_list = Parallel(n_jobs=self.n_estimators)(
-                    delayed(fit_submodel)(self.base_estimator, val[0], val[1])
+                    delayed(fit_submodel)(self.base_estimator, val[0], val[1], fit_params)
                     for key, val in splitted.items()
                 )
             self.estimators = {key:result_list[i] for i, key in enumerate(splitted.keys())}
@@ -112,9 +112,44 @@ class StratifiedRegressor(BaseEstimator):
             self.estimators = {}
             for key, val in splitted.items():
                 X_train, Y_train = val[0], val[1]
-                self.estimators[key] = fit_submodel(self.base_estimator, X_train, Y_train)
+                self.estimators[key] = fit_submodel(self.base_estimator, X_train, Y_train, fit_params)
         self.booster_ = BoosterWrapper(self.estimators)
         return self
+
+    def mixed_fit(self, splitted, fit_params={}):
+        X_train, Y_train = splitted['oracle']
+        self.estimators['oracle'] = fit_submodel(self.base_estimator, X_train, Y_train, fit_params)
+        mixed_splitted = {}
+        for key, val in splitted.items():
+            if key != 'oracle':
+                X_train, Y_train = val[0], val[1]
+                Y_oracle = self.estimators['oracle'].predict(X_train)
+
+                mixed_X_train = pd.concatenate([X_train, X_train], axis=0)
+                mixed_Y_train = np.concatenate([Y_train, Y_oracle], axis=0)
+
+                mixed_splitted[key] = (mixed_X_train, mixed_Y_train)
+    
+        if self.parallel:
+            result_list = Parallel(n_jobs=self.n_estimators-1)(
+                    delayed(fit_submodel)(self.base_estimator, val[0], val[1], fit_params)
+                    for key, val in mixed_splitted.items()
+                )
+            for i, key in enumerate(mixed_splitted.keys()):
+                self.estimators[key] = result_list[i]
+        else:
+            self.estimators = {}
+            for key, val in mixed_splitted.items():
+                X_train, Y_train = val[0], val[1]
+                self.estimators[key] = fit_submodel(self.base_estimator, X_train, Y_train, fit_params)
+        self.booster_ = BoosterWrapper(self.estimators)
+        return self
+
+    def fit(self, X, y, fit_params={}):
+        splitted = self.split(X, y)
+        if self.mixed_training:
+            return self.mixed_fit(splitted, fit_params)
+        return self.default_fit(splitted, fit_params)
 
     def get_stratification_masks(self, X, return_y_oracle=False):
         y_oracle = self.estimators['oracle'].predict(X)
@@ -169,8 +204,8 @@ class StratifiedRegressor(BaseEstimator):
             return y_pred, return_used_estimators
         return y_pred
 
-def fit_submodel(base_estimator, X, Y):
-    return clone(base_estimator).fit(X, Y)
+def fit_submodel(base_estimator, X, Y, fit_params={}):
+    return clone(base_estimator).fit(X, Y, **fit_params)
 
 def predict_submodel(estimator, X):
     return estimator.predict(X)

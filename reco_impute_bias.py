@@ -32,6 +32,7 @@ if __name__ == '__main__':
         if stratify:
             strat_params = {'mode':'quantile', 
                             'ranges':[0.2, 0.4, 0.6, 0.8],
+                            'mixed_training':True,
                             'random_state':6262}
             prefix = 'Stratified'
         else:
@@ -48,8 +49,6 @@ if __name__ == '__main__':
                                                 stratify_params=strat_params, 
                                                 no_imputation=True)
             else:
-                if prefix == 'Normal':
-                    strat_params["parallel"] = False
                 estimator = make_best_estimator(model_class,
                                                 model_name,
                                                 stratified=stratify, 
@@ -65,7 +64,7 @@ if __name__ == '__main__':
             os.makedirs(save_models_path, exist_ok=True)
             results = evaluate(
                     estimator,
-                    nan_flag + '_' + model_name,
+                    nan_flag + '_' + model_name + '_',
                     df_dict,
                     mode="ho",
                     suffix="_hold_outs.pkl",

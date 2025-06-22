@@ -1551,8 +1551,8 @@ def plot_ablation_study(
                                weighted=weighted, 
                                ci_mode=ci_mode)
     plot_df["Feature"] = keys
-    # Convert to DataFrame
-    plot_df = pd.DataFrame(plot_df)
+    # # Convert to DataFrame
+    # plot_df = pd.DataFrame(plot_df)
 
     # Set theme for a clean look
     sns.set_theme(style="whitegrid", context="talk")
@@ -2494,17 +2494,19 @@ def get_performances(file_list, results_folder, weighted=True, ci_mode='bca'):
         plot_df["RMSE_CI95_up"].append(up_r)
         plot_df["MAE_CI95_low"].append(low_m)
         plot_df["MAE_CI95_up"].append(up_m)
+    plot_df = pd.DataFrame(plot_df)
     return addon, plot_df
 
 # Plots for experiments following reviewer recommendations
 def get_impute_exp_name(string):
-    return string[string.index('ho_')+3:string.index('_results.csv')]
+    endstring = '_LGBMRegressor' if '_LGBMRegressor' in string else 'LGBMRegressor'
+    return string[string.index('ho_')+3:string.index(endstring)]
 
 def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
     """
     Plot average Weighted MAE for withNaN or noNaN (imputed) experiments with or without stratification
     """
-    impute_bias_results = [pd.read_csv(file) for file in os.listdir("./Results/reco_exp/impute_bias/")]
+    impute_bias_results = [file for file in os.listdir("./Results/reco_exp/impute_bias/")]
     # impute_bias_models = "./Results/reco_exp_models/impute_bias/"
 
     # summary_df = {"Experiment":[], "MAE":[]}
@@ -2537,9 +2539,10 @@ def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
     addon, plot_df = get_performances(impute_bias_results, "./Results/reco_exp/impute_bias/", 
                                       weighted=True, ci_mode='bca')
     plot_df["Experiment"] = [get_impute_exp_name(file_name) for file_name in impute_bias_results]
-    imp_bias_strat = plot_df[addon + "MAE"][plot_df["Experiment" == "Impute_Stratified"]] - plot_df[addon + "MAE"][plot_df["Experiment" == "NoImpute_Stratified"]]
-    imp_bias_normal = plot_df[addon + "MAE"][plot_df["Experiment" == "Impute_Normal"]] - plot_df[addon + "MAE"][plot_df["Experiment" == "NoImpute_Normal"]]
-
+    imp_bias_strat = plot_df[addon + "MAE"][plot_df["Experiment"] == "Impute_Stratified"].item() - plot_df[addon + "MAE"][plot_df["Experiment"] == "NoImpute_Stratified"].item()
+    sign_imp_bias_strat = '+' if imp_bias_strat > 0 else '-'
+    imp_bias_normal = plot_df[addon + "MAE"][plot_df["Experiment"] == "Impute_Normal"].item() - plot_df[addon + "MAE"][plot_df["Experiment"] == "NoImpute_Normal"].item()
+    sign_imp_bias_normal = '+' if imp_bias_normal > 0 else '-'
     # Create bar plots for Pathogen and Bacillus groups.
     cmap = sns.color_palette("viridis_r", as_cmap=True)
 
@@ -2547,7 +2550,7 @@ def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
         plot_df,
         x="Experiment",
         y=addon + "MAE",
-        palette="viridis",
+        palette="inferno",
         edgecolor="black",
     )
     intervals = np.array([plot_df["MAE_CI95_low"], plot_df["MAE_CI95_up"]])
@@ -2575,9 +2578,8 @@ def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
             fontsize=12,
             fontweight="bold",
         )
-    bars.legend(loc="upper right", fontsize=12)
     plt.title(
-        f"Comparison of Weighted MAE with or without Imputation\nImputation bias with stratification {imp_bias_strat}, without {imp_bias_normal}", 
+        f"Comparison of Weighted MAE with or without Imputation\nImputation bias with stratification: {sign_imp_bias_strat}{imp_bias_strat:.3e},\nwithout: {sign_imp_bias_normal}{imp_bias_normal:.3e}", 
         fontsize=14, 
         fontweight="bold"
     )
