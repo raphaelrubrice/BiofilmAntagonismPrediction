@@ -129,6 +129,8 @@ def compute_CI(
 ):
     if confidence > 1:
         confidence = confidence / 100
+    # Filter out nans and 0.0
+    data = np.array([val for val in data if not np.isnan(val) and np.abs(val) > 1e-5])
     if mode == "bca":
         bs = IIDBootstrap(data, seed=seed)
         low, up = bs.conf_int(stat_func, reps=num_iter, method="bca", size=confidence)
@@ -1676,7 +1678,7 @@ def str2arr(y_str):
         return np.fromstring(y_str, sep=",")
 
 
-def load_lgbm_model(path_model_folder=None, path_df=None, ho_name="1234_x_S.en"):
+def load_lgbm_model(path_model_folder=None, path_df=None, ho_name="1234_x_S.en", filter = ''):
     from pipeline import create_pipeline
 
     if path_model_folder is None:
@@ -1684,7 +1686,7 @@ def load_lgbm_model(path_model_folder=None, path_df=None, ho_name="1234_x_S.en")
     file_list = os.listdir(path_model_folder)
     file_list = [path_model_folder + file for file in file_list]
     model_file = [file for file in file_list if ho_name in file]
-    model_file = [file for file in model_file if file.endswith("pkl")][0]
+    model_file = [file for file in model_file if file.endswith("pkl") and filter in file][0]
     if path_df is None:
         method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
     else:
@@ -2257,6 +2259,7 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
 def make_inference(ho_name,
                     method_df_path="./Data/Datasets/fe_combinatoric_COI.csv",
                     models_folder="./Results/models/",
+                    filter='',
                     return_x_test_only=False
                     ):
     try:
@@ -2265,7 +2268,7 @@ def make_inference(ho_name,
             models_folder + file
             for file in os.listdir(models_folder)
         ]
-        model_file = [file for file in file_list if ho_name in file][0]
+        model_file = [file for file in file_list if ho_name in file and filter in file][0]
         with open(model_file, "rb") as f:
             pipeline = pkl.load(f)
         X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
@@ -2280,6 +2283,7 @@ def make_inference(ho_name,
             models_folder,
             method_df_path,
             ho_name,
+            filter=filter
         )
         X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
         if not pkl_flag:
@@ -2295,6 +2299,7 @@ def plot_global_SHAP(
     path_model_folder=None,
     path_df=None,
     ho_name="1234_x_S.en",
+    filter='',
     save_path=None,
     show=False,
 ):
@@ -2315,6 +2320,7 @@ def plot_global_SHAP(
     X_test, pipeline, _, _ = make_inference(ho_name,
                                         method_df_path="./Data/Datasets/fe_combinatoric_COI.csv",
                                         models_folder="./Results/models/",
+                                        filter=filter,
                                         return_x_test_only=True)
     # try:
     #     method_df = (
@@ -2373,6 +2379,7 @@ def plot_local_SHAP(
     path_df=None,
     ho_name="1234_x_S.en",
     mode="worst",
+    filter='',
     save_path=None,
     show=False,
 ):
@@ -2393,7 +2400,8 @@ def plot_local_SHAP(
     """
     X_test, pipeline, yhat, Y_test = make_inference(ho_name,
                                         method_df_path="./Data/Datasets/fe_combinatoric_COI.csv",
-                                        models_folder="./Results/models/")
+                                        models_folder="./Results/models/",
+                                        filter=filter)
     # try:
     #     method_df = (Weighted MAe
     #         pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
@@ -2618,6 +2626,83 @@ def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
         plt.savefig(save_path, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
+
+def run_model_analysis_plots(path_model_folder, path_df, exp_filter='', save_path=None, show=False):
+    plot_err_distrib(path_df, save_path=save_path, show=show)
+    plot_err_by_org(path_df, save_path=save_path, show=show)
+    # Plot SHAP values for previously worst predicted interaction
+    plot_global_SHAP(path_model_folder, path_df, ho_name="1234_x_S.en", filter=exp_filter, save_path=save_path, show=show)
+    # Plot SHAP values for previously best predicted interaction
+    plot_global_SHAP(path_model_folder, path_df, ho_name="11457_x_E.ce", filter=exp_filter, save_path=save_path, show=show)
+
+def in_depth_analysis(path_model_folder, path_df,
+                      separate: bool = False, 
+                      exp_filter: str = '',
+                      save_path: str = None, 
+                      show: bool = False):
+    # If stratified in name, if separate => Run for each stratified sub regressor, else run for the overall model
+    if 'Stratified' in path_df:
+        if separate:
+            from pipeline import evaluate
+            for ho_name in all_ho_names:
+                pipeline, method_df, _ = load_lgbm_model(path_model_folder, path_df, ho_name=ho_name, filter=exp_filter)
+                target = ["Score"]
+                remove_cols = [
+                                "Unnamed: 0",
+                                "Unnamed: 0.1",
+                                "B_sample_ID",
+                                "P_sample_ID",
+                                "Bacillus",
+                                "Pathogene",
+                            ]
+                for i, target_class in enumerate(pipeline[-1].estimators.keys()):
+                    if i == 0:
+                        y_range = (0.0, pipeline[-1].ranges[0])
+                    elif i == len(pipeline[-1].estimators.keys()) - 1:
+                        y_range = (pipeline[-1].ranges[-1], 1.0)
+                    else:
+                        y_range = (pipeline[-1].ranges[i], pipeline[-1].ranges[i+1])
+                        
+                    pipeline[-1] = pipeline[-1].estimators[target_class]
+                    full_name = exp_filter + '_' + target_class
+                    results = evaluate(
+                                pipeline,
+                                full_name + '_',
+                                {'combinatoric':method_df},
+                                mode="ho",
+                                suffix="_hold_outs.pkl",
+                                ho_folder_path="Data/Datasets/",
+                                target=target,
+                                remove_cols=remove_cols,
+                                save=False,
+                                y_range=y_range,
+                                parallel=True,
+                                n_jobs_outer=12,
+                                n_jobs_model=1,
+                                batch_size=12,
+                                temp_folder="./temp_results",
+                            )
+                    path_df = f"Results/reco_exp/impute_bias/ho_{full_name}_results.csv"
+                    results.to_csv(path_df)
+                    run_model_analysis_plots(path_model_folder, path_df, save_path, show)
+        else:
+            run_model_analysis_plots(path_model_folder, path_df, exp_filter, save_path, show)
+
+def plot_conformal(model_path_list, ci_mode='bca'):
+    # For each model, for each fold, run conformal inference
+    # For each instance, store the interval width and a boolean that is true if the ture score is inside the interval
+    # If ci_mode is not None, compute the CI of the mean interval width, plot it
+    # if ci_mode is None, plot the boxplot of conformal interval widths
+    # compute the overall coverage, plot it
+    pass
+
+def plot_conformal_by_org(model_path, ci_mode='bca'):
+    # for each fold, run conformal inference
+    # For each instance, store the interval width and a boolean that is true if the ture score is inside the interval
+    # If ci_mode is not None, compute the CI of the mean interval width BY ORG, plot it
+    # if ci_mode is None, plot the boxplot of conformal interval widths BY ORG
+    # compute the overall coverage BY ORG, plot it
+    pass
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate analysis plots.")

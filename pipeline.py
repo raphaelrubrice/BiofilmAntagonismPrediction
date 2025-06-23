@@ -3,6 +3,7 @@ import numpy as np
 import pickle as pkl
 import json, os, gc, subprocess, sys, time
 import warnings
+from typing import Union, Tuple
 
 from copy import deepcopy
 from scipy import stats
@@ -208,6 +209,7 @@ def evaluate_hold_out(
     remove_cols=[None],
     shuffle=False,
     mode="normal",
+    y_range: Union[Tuple | None] = None,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -239,19 +241,35 @@ def evaluate_hold_out(
         random_state=random_state,
     )
 
-    estimator.fit(X_train, np.ravel(y_train))
-    gpu_cleanup()
+    empty_test_flag = False
+    if y_range is not None:
+        train_mask = (y_train >= y_range[0]) & (y_train < y_range[1])
+        test_mask = (y_test >= y_range[0]) & (y_test < y_range[1])
+        if test_mask.shape[0] > 0:
+            X_train, y_train = X_train[train_mask], y_train[train_mask]
+            X_test, y_test = X_test[test_mask], y_test[test_mask]
+        else:
+            empty_test_flag = True
+    if not empty_test_flag:
+        estimator.fit(X_train, np.ravel(y_train))
+        gpu_cleanup()
 
-    yhat = predict_in_chunks(estimator, X_test)
-    gpu_cleanup()
+        yhat = predict_in_chunks(estimator, X_test)
+        gpu_cleanup()
 
-    y_test_arr = y_test.to_numpy()
-    mae = mean_absolute_error(y_test, yhat)
-    try:
-        rmse = root_mean_squared_error(y_test, yhat)
-    except Exception as e:
-        rmse = np.nan
+        y_test_arr = y_test.to_numpy()
+        mae = mean_absolute_error(y_test, yhat)
+        try:
+            rmse = root_mean_squared_error(y_test, yhat)
+        except Exception as e:
+            rmse = np.nan
+    else:
+        mae = 0.0
+        rmse = 0.0
+        yhat = np.array(0)
+        y_test_arr = np.array(0)
 
+    n_samples = yhat.shape[0] if not empty_test_flag else 0
     results = {
         "Evaluation": [ho_name],
         "Method": [method_name],
@@ -260,7 +278,7 @@ def evaluate_hold_out(
         "RMSE": [rmse],
         "Y_hat": [yhat],
         "Y_true": [y_test_arr],
-        "n_samples": [yhat.shape[0]],
+        "n_samples": [n_samples],
     }
     df = pd.DataFrame(results)
 
@@ -325,6 +343,7 @@ def evaluate_method_disk_batched(
     feature_selection=False,
     remove_cols=[None],
     shuffle=False,
+    y_range: Union[Tuple | None] = None,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -391,6 +410,7 @@ def evaluate_method_disk_batched(
                         remove_cols=remove_cols,
                         mode=feature_selection,
                         shuffle=shuffle,
+                        y_range=y_range,
                         random_state=random_state,
                         save=save,
                         save_path=save_path,
@@ -410,6 +430,7 @@ def evaluate_method_disk_batched(
                         remove_cols=remove_cols,
                         mode=feature_selection,
                         shuffle=shuffle,
+                        y_range=y_range,
                         random_state=random_state,
                         save=save,
                         save_path=save_path,
@@ -458,6 +479,7 @@ def evaluate_method(
     feature_selection=False,
     remove_cols=[None],
     shuffle=False,
+    y_range: Union[Tuple | None] = None,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -476,6 +498,7 @@ def evaluate_method(
             remove_cols=remove_cols,
             mode=feature_selection,
             shuffle=shuffle,
+            y_range=y_range,
             random_state=random_state,
             save=save,
             save_path=save_path,
@@ -496,6 +519,7 @@ def evaluate(
     target=["Score"],
     remove_cols=[None],
     shuffle=False,
+    y_range: Union[Tuple | None] = None,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -530,6 +554,7 @@ def evaluate(
                     feature_selection=feature_selection,
                     remove_cols=remove_cols,
                     shuffle=shuffle,
+                    y_range=y_range,
                     random_state=random_state,
                     save=save,
                     save_path=save_path,
@@ -550,6 +575,7 @@ def evaluate(
                     mode=mode,
                     feature_selection=feature_selection,
                     shuffle=shuffle,
+                    y_range=y_range,
                     random_state=random_state,
                     save=save,
                     save_path=save_path,
