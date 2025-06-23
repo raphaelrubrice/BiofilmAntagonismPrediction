@@ -2731,6 +2731,7 @@ if __name__ == "__main__":
             "plot_global_DiCE",
             "plot_local_DiCE",
             "plot_impute_bias",
+            "in_depth_analysis"
         ],
         help="Type of plot to generate.",
     )
@@ -2900,6 +2901,7 @@ if __name__ == "__main__":
         )
     elif plot_type == "plot_impute_bias":
         plot_impute_bias(save_path="./Plots/imputation_bias.pdf")
+        
     elif plot_type == "in_depth_analysis":
         # Plot in_depth best normal no impute
         print("Making plots for an in-depth analysis for best, normal, no imputation model..")
