@@ -2901,7 +2901,7 @@ if __name__ == "__main__":
         )
     elif plot_type == "plot_impute_bias":
         plot_impute_bias(save_path="./Plots/imputation_bias.pdf")
-        
+
     elif plot_type == "in_depth_analysis":
         # Plot in_depth best normal no impute
         print("Making plots for an in-depth analysis for best, normal, no imputation model..")
@@ -2915,7 +2915,7 @@ if __name__ == "__main__":
         # Plot in_depth best stratified
         print("Making plots for an in-depth analysis for best, stratified model..")
         in_depth_analysis("./Results/reco_exp_models/impute_bias/", 
-                          f"./Results/reco_exp/impute_bias/ho_NoImpute_Custom_Mixed_Stratified_results.csv",
+                          f"./Results/reco_exp/impute_bias/ho_NoImpute_Custom_Mixed_StratifiedLGBMRegressor_results.csv",
                         separate= False, 
                         exp_filter='NoImpute_Custom_Mixed_Stratified',
                         save_path="./Plots/best_stratified", 
@@ -2924,7 +2924,7 @@ if __name__ == "__main__":
         # Plot in_depth best stratified (separated)
         print("Making SEPARATED plots for an in-depth analysis for best, stratified model..")
         in_depth_analysis("./Results/reco_exp_models/impute_bias/", 
-                          f"./Results/reco_exp/impute_bias/ho_NoImpute_Custom_Mixed_Stratified_results.csv",
+                          f"./Results/reco_exp/impute_bias/ho_NoImpute_Custom_Mixed_StratifiedLGBMRegressor_results.csv",
                         separate= True, 
                         exp_filter='NoImpute_Custom_Mixed_Stratified',
                         save_path="./Plots/best_stratified_separated", 
