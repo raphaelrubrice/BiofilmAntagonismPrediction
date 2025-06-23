@@ -2627,6 +2627,12 @@ def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
     if show:
         plt.show()
 
+def add_to_name(string, addon):
+    if string is not None:
+        splitted = string.split('.')
+        return '.'.join(splitted[:-1]) + addon + splitted[-1]
+    return None
+
 def run_model_analysis_plots(path_model_folder, path_df, exp_filter='', save_path=None, show=False):
     plot_err_distrib(path_df, save_path=save_path, show=show)
     plot_err_by_org(path_df, save_path=save_path, show=show)
@@ -2662,7 +2668,7 @@ def in_depth_analysis(path_model_folder, path_df,
                         y_range = (pipeline[-1].ranges[-1], 1.0)
                     else:
                         y_range = (pipeline[-1].ranges[i], pipeline[-1].ranges[i+1])
-                        
+
                     pipeline[-1] = pipeline[-1].estimators[target_class]
                     full_name = exp_filter + '_' + target_class
                     results = evaluate(
@@ -2894,3 +2900,30 @@ if __name__ == "__main__":
         )
     elif plot_type == "plot_impute_bias":
         plot_impute_bias(save_path="./Plots/imputation_bias.pdf")
+    elif plot_type == "in_depth_analysis":
+        # Plot in_depth best normal no impute
+        print("Making plots for an in-depth analysis for best, normal, no imputation model..")
+        in_depth_analysis("./Results/reco_exp_models/impute_bias/", 
+                          f"./Results/reco_exp/impute_bias/ho_NoImpute_Normal_results.csv",
+                        separate= False, 
+                        exp_filter='NoImpute_Normal',
+                        save_path="./Plots/best_normal_no_impute", 
+                        show=False)
+        
+        # Plot in_depth best stratified
+        print("Making plots for an in-depth analysis for best, stratified model..")
+        in_depth_analysis("./Results/reco_exp_models/impute_bias/", 
+                          f"./Results/reco_exp/impute_bias/ho_NoImpute_Custom_Mixed_Stratified_results.csv",
+                        separate= False, 
+                        exp_filter='NoImpute_Custom_Mixed_Stratified',
+                        save_path="./Plots/best_stratified", 
+                        show=False)
+        
+        # Plot in_depth best stratified (separated)
+        print("Making SEPARATED plots for an in-depth analysis for best, stratified model..")
+        in_depth_analysis("./Results/reco_exp_models/impute_bias/", 
+                          f"./Results/reco_exp/impute_bias/ho_NoImpute_Custom_Mixed_Stratified_results.csv",
+                        separate= True, 
+                        exp_filter='NoImpute_Custom_Mixed_Stratified',
+                        save_path="./Plots/best_stratified_separated", 
+                        show=False)
