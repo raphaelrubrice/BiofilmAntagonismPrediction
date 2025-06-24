@@ -51,6 +51,8 @@ from sklearn.metrics import (
     r2_score,
 )
 
+from mapie import SplitConformalRegressor
+
 from joblib import Memory, Parallel, delayed
 
 memory = Memory(location="./cachedir", verbose=0)
@@ -215,6 +217,7 @@ def evaluate_hold_out(
     shuffle=False,
     mode="normal",
     y_class: str = None,
+    conformal: bool = False,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -246,10 +249,24 @@ def evaluate_hold_out(
         random_state=random_state,
     )
     
+    if conformal:
+        estimator = SplitConformalRegressor(
+            estimator=estimator, confidence_level=0.95)
+        X_train, X_conformalize, y_train, y_conformalize = train_test_split(X_train, y_train, 
+                                                                            test_size=0.2, 
+                                                                            shuffle=True, 
+                                                                            random_state=random_state)
+        estimator.conformalize(X_conformalize, y_conformalize)
+        
     estimator.fit(X_train, np.ravel(y_train))
     gpu_cleanup()
 
-    yhat = predict_in_chunks(estimator, X_test, y_class=y_class)
+    if conformal:
+        yhat, yhat_intervals = predict_in_chunks(estimator, X_test, y_class=y_class, conformal=conformal)
+        widths = np.abs(yhat_intervals[:,1] - yhat_intervals[:,0])
+        coverage = np.where((yhat >= yhat_intervals[:,0]) & (yhat <= yhat_intervals[:,1]), 1, 0).mean()
+    else:
+        yhat = predict_in_chunks(estimator, X_test, y_class=y_class)
     gpu_cleanup()
 
     y_test_arr = y_test.to_numpy()
@@ -270,6 +287,11 @@ def evaluate_hold_out(
         "Y_true": [y_test_arr],
         "n_samples": [n_samples],
     }
+    if conformal:
+        results["Y_hat_intervals"] = yhat_intervals
+        results["Widths"] = widths
+        results["Coverage"] = coverage
+
     df = pd.DataFrame(results)
 
     if mode != "feature_selection":
@@ -334,6 +356,7 @@ def evaluate_method_disk_batched(
     remove_cols=[None],
     shuffle=False,
     y_class = None,
+    conformal: bool = False,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -401,6 +424,7 @@ def evaluate_method_disk_batched(
                         mode=feature_selection,
                         shuffle=shuffle,
                         y_class=y_class,
+                        conformal=conformal,
                         random_state=random_state,
                         save=save,
                         save_path=save_path,
@@ -421,6 +445,7 @@ def evaluate_method_disk_batched(
                         mode=feature_selection,
                         shuffle=shuffle,
                         y_class=y_class,
+                        conformal=conformal,
                         random_state=random_state,
                         save=save,
                         save_path=save_path,
@@ -470,6 +495,7 @@ def evaluate_method(
     remove_cols=[None],
     shuffle=False,
     y_class = None,
+    conformal: bool = False,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -489,6 +515,7 @@ def evaluate_method(
             mode=feature_selection,
             shuffle=shuffle,
             y_class=y_class,
+            conformal=conformal,
             random_state=random_state,
             save=save,
             save_path=save_path,
@@ -510,6 +537,7 @@ def evaluate(
     remove_cols=[None],
     shuffle=False,
     y_class = None,
+    conformal=conformal,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -545,6 +573,7 @@ def evaluate(
                     remove_cols=remove_cols,
                     shuffle=shuffle,
                     y_class=y_class,
+                    conformal=conformal,
                     random_state=random_state,
                     save=save,
                     save_path=save_path,
@@ -566,6 +595,7 @@ def evaluate(
                     feature_selection=feature_selection,
                     shuffle=shuffle,
                     y_class=y_class,
+                    conformal=conformal,
                     random_state=random_state,
                     save=save,
                     save_path=save_path,

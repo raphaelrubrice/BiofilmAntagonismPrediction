@@ -10,6 +10,7 @@ joblib==1.4.2
 numba==0.59.1
 shap==0.45.1
 dice-ml
+mapie
 arch==7.2.0
 statsmodels==0.14.2
 optuna==4.0.0
