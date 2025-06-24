@@ -3,7 +3,7 @@ import numpy as np
 import pickle as pkl
 import json, os, gc, subprocess, sys, time
 import warnings
-from typing import Union, Tuple
+from typing import Union, Tuple, Any
 
 from copy import deepcopy
 from scipy import stats
@@ -181,11 +181,16 @@ def downcast_df(df):
 
 
 # --- Helper for chunked prediction and GPU cleanup ---
-def predict_in_chunks(estimator, X, chunk_size=2048):
+def predict_in_chunks(estimator, X, chunk_size=2048, y_class: str = None):
     preds = []
     for start in range(0, X.shape[0], chunk_size):
         chunk = X.iloc[start : start + chunk_size]
-        preds.append(estimator.predict(chunk))
+
+        # If y_class is passed we assume that the estimator is a StratifiedRegressor object
+        if y_class is not None:
+            preds.append(estimator.filtered_predict(chunk, y_class=y_class))
+        else:
+            preds.append(estimator.predict(chunk))
     return np.concatenate(preds).ravel()
 
 
@@ -209,7 +214,7 @@ def evaluate_hold_out(
     remove_cols=[None],
     shuffle=False,
     mode="normal",
-    y_range: Union[Tuple | None] = None,
+    y_class: str = None,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -240,36 +245,21 @@ def evaluate_hold_out(
         shuffle=shuffle,
         random_state=random_state,
     )
+    
+    estimator.fit(X_train, np.ravel(y_train))
+    gpu_cleanup()
 
-    empty_test_flag = False
-    if y_range is not None:
-        train_mask = (y_train >= y_range[0]) & (y_train < y_range[1])
-        test_mask = (y_test >= y_range[0]) & (y_test < y_range[1])
-        if test_mask.shape[0] > 0:
-            X_train, y_train = X_train[train_mask], y_train[train_mask]
-            X_test, y_test = X_test[test_mask], y_test[test_mask]
-        else:
-            empty_test_flag = True
-    if not empty_test_flag:
-        estimator.fit(X_train, np.ravel(y_train))
-        gpu_cleanup()
+    yhat = predict_in_chunks(estimator, X_test, y_class=y_class)
+    gpu_cleanup()
 
-        yhat = predict_in_chunks(estimator, X_test)
-        gpu_cleanup()
+    y_test_arr = y_test.to_numpy()
+    mae = mean_absolute_error(y_test, yhat)
+    try:
+        rmse = root_mean_squared_error(y_test, yhat)
+    except Exception as e:
+        rmse = np.nan
 
-        y_test_arr = y_test.to_numpy()
-        mae = mean_absolute_error(y_test, yhat)
-        try:
-            rmse = root_mean_squared_error(y_test, yhat)
-        except Exception as e:
-            rmse = np.nan
-    else:
-        mae = 0.0
-        rmse = 0.0
-        yhat = np.array(0)
-        y_test_arr = np.array(0)
-
-    n_samples = yhat.shape[0] if not empty_test_flag else 0
+    n_samples = yhat.shape[0]
     results = {
         "Evaluation": [ho_name],
         "Method": [method_name],
@@ -343,7 +333,7 @@ def evaluate_method_disk_batched(
     feature_selection=False,
     remove_cols=[None],
     shuffle=False,
-    y_range: Union[Tuple | None] = None,
+    y_class = None,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -410,7 +400,7 @@ def evaluate_method_disk_batched(
                         remove_cols=remove_cols,
                         mode=feature_selection,
                         shuffle=shuffle,
-                        y_range=y_range,
+                        y_class=y_class,
                         random_state=random_state,
                         save=save,
                         save_path=save_path,
@@ -430,7 +420,7 @@ def evaluate_method_disk_batched(
                         remove_cols=remove_cols,
                         mode=feature_selection,
                         shuffle=shuffle,
-                        y_range=y_range,
+                        y_class=y_class,
                         random_state=random_state,
                         save=save,
                         save_path=save_path,
@@ -479,7 +469,7 @@ def evaluate_method(
     feature_selection=False,
     remove_cols=[None],
     shuffle=False,
-    y_range: Union[Tuple | None] = None,
+    y_class = None,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -498,7 +488,7 @@ def evaluate_method(
             remove_cols=remove_cols,
             mode=feature_selection,
             shuffle=shuffle,
-            y_range=y_range,
+            y_class=y_class,
             random_state=random_state,
             save=save,
             save_path=save_path,
@@ -519,7 +509,7 @@ def evaluate(
     target=["Score"],
     remove_cols=[None],
     shuffle=False,
-    y_range: Union[Tuple | None] = None,
+    y_class = None,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -554,7 +544,7 @@ def evaluate(
                     feature_selection=feature_selection,
                     remove_cols=remove_cols,
                     shuffle=shuffle,
-                    y_range=y_range,
+                    y_class=y_class,
                     random_state=random_state,
                     save=save,
                     save_path=save_path,
@@ -575,7 +565,7 @@ def evaluate(
                     mode=mode,
                     feature_selection=feature_selection,
                     shuffle=shuffle,
-                    y_range=y_range,
+                    y_class=y_class,
                     random_state=random_state,
                     save=save,
                     save_path=save_path,

@@ -2661,15 +2661,7 @@ def in_depth_analysis(path_model_folder, path_df,
                                 "Bacillus",
                                 "Pathogene",
                             ]
-                for i, target_class in enumerate(pipeline[-1].estimators.keys()):
-                    if i == 0:
-                        y_range = (0.0, pipeline[-1].ranges[0])
-                    elif i == len(pipeline[-1].estimators.keys()) - 1:
-                        y_range = (pipeline[-1].ranges[-1], 1.0)
-                    else:
-                        y_range = (pipeline[-1].ranges[i], pipeline[-1].ranges[i+1])
-
-                    pipeline[-1] = pipeline[-1].estimators[target_class]
+                for target_class in pipeline[-1].estimators.keys():
                     full_name = exp_filter + '_' + target_class
                     results = evaluate(
                                 pipeline,
@@ -2681,7 +2673,7 @@ def in_depth_analysis(path_model_folder, path_df,
                                 target=target,
                                 remove_cols=remove_cols,
                                 save=False,
-                                y_range=y_range,
+                                y_class=target_class,
                                 parallel=True,
                                 n_jobs_outer=12,
                                 n_jobs_model=1,
@@ -2691,8 +2683,8 @@ def in_depth_analysis(path_model_folder, path_df,
                     path_df = f"Results/reco_exp/impute_bias/ho_{full_name}_results.csv"
                     results.to_csv(path_df)
                     run_model_analysis_plots(path_model_folder, path_df, save_path, show)
-        else:
-            run_model_analysis_plots(path_model_folder, path_df, exp_filter, save_path, show)
+    else:
+        run_model_analysis_plots(path_model_folder, path_df, exp_filter, save_path, show)
 
 def plot_conformal(model_path_list, ci_mode='bca'):
     # For each model, for each fold, run conformal inference
