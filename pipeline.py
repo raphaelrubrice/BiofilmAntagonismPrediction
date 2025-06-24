@@ -51,7 +51,7 @@ from sklearn.metrics import (
     r2_score,
 )
 
-from mapie import SplitConformalRegressor
+from mapie.regression import SplitConformalRegressor
 
 from joblib import Memory, Parallel, delayed
 
@@ -537,7 +537,7 @@ def evaluate(
     remove_cols=[None],
     shuffle=False,
     y_class = None,
-    conformal=conformal,
+    conformal=False,
     random_state=62,
     save=False,
     save_path="./Results/models/",
