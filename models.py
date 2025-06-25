@@ -69,6 +69,7 @@ class StratifiedRegressor(BaseEstimator):
                  mixed_training: bool = False,
                  random_state: int = 6262):
         super().__init__()
+        self.__class__ = base_estimator.__class__
         self.base_estimator = base_estimator
         self.mode = mode
         if self.mode != 'quantile':
