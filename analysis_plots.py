@@ -1745,7 +1745,13 @@ def check_empty(data, mask):
     return False
 
 
-def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
+def plot_err_distrib(models_folder=None, 
+                     path_results_df=None, 
+                     ci_mode="bca", 
+                     filter='',
+                     y_class=None,
+                     save_path=None, 
+                     show=False):
     """
     Generate two plots related to prediction errors:
 
@@ -1764,12 +1770,15 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
         show (bool): If True, display the plots.
     """
     # Part 1: Error distribution across hold-out folds.
-    if path_df is None:
+    if path_results_df is None:
         results = pd.read_csv(
             "./Results/ablation_study/ho_None_LGBMRegressor_results.csv"
         )
     else:
-        results = pd.read_csv(path_df)
+        results = pd.read_csv(path_results_df)
+
+    if models_folder is None:
+        models_folder = "./Results/models/"
 
     # Calculate percentage of predictions below various error thresholds.
     plot_df = {
@@ -1783,30 +1792,35 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
     }
     memory = {}
     for ho_name in results["Evaluation"]:
-        try:
-            method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
-            file_list = [
-                "./Results/models/" + file for file in os.listdir("./Results/models/")
-            ]
-            model_file = [file for file in file_list if ho_name in file][0]
-            with open(model_file, "rb") as f:
-                pipeline = pkl.load(f)
-            X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-            # Preprocess X_test using the pipeline's preprocessing steps.
-            X_test = pipeline[:-1].transform(X_test)
-            yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
-        except Exception as e:
-            Warning("Pickle load failed; trying alternative load method...")
-            pipeline, method_df, pkl_flag = load_lgbm_model(
-                "./Results/models/", "./Data/Datasets/fe_combinatoric_COI.csv", ho_name
-            )
-            X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
-            X_train = X_train[pipeline.feature_names_in_]
-            X_test = X_test[pipeline.feature_names_in_]
-            if not pkl_flag:
-                pipeline[:-1].fit(X_train)
-            X_test = pipeline[:-1].transform(X_test)
-            yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+        _, _, yhat, y_true = make_inference(ho_name, 
+                                        method_df_path="./Data/Datasets/fe_combinatoric_COI.csv",
+                                        models_folder=models_folder,
+                                        y_class=y_class,
+                                        filter=filter)
+        # try:
+        #     method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
+        #     file_list = [
+        #         models_folder + file for file in os.listdir(models_folder)
+        #     ]
+        #     model_file = [file for file in file_list if ho_name in file][0]
+        #     with open(model_file, "rb") as f:
+        #         pipeline = pkl.load(f)
+        #     X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
+        #     # Preprocess X_test using the pipeline's preprocessing steps.
+        #     X_test = pipeline[:-1].transform(X_test)
+        #     yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+        # except Exception as e:
+        #     Warning("Pickle load failed; trying alternative load method...")
+        #     pipeline, method_df, pkl_flag = load_lgbm_model(
+        #         models_folder, "./Data/Datasets/fe_combinatoric_COI.csv", ho_name
+        #     )
+        #     X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
+        #     X_train = X_train[pipeline.feature_names_in_]
+        #     X_test = X_test[pipeline.feature_names_in_]
+        #     if not pkl_flag:
+        #         pipeline[:-1].fit(X_train)
+        #     X_test = pipeline[:-1].transform(X_test)
+        #     yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
         y_true = np.array(y_true).reshape(-1, 1)
         abs_err = np.abs(yhat - y_true)
         memory[ho_name] = {"yhat": yhat, "y_true": y_true}
@@ -2060,7 +2074,13 @@ def plot_err_distrib(path_df=None, ci_mode="bca", save_path=None, show=False):
         plt.show()
 
 
-def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
+def plot_err_by_org(models_folder=None, 
+                    path_results_df=None, 
+                    ci_mode="bca", 
+                    filter='',
+                    y_class=y_class,
+                    save_path=None, 
+                    show=False):
     """
     Plot the mean absolute error (MAE) for different organism groups and a heatmap for interaction errors.
 
@@ -2074,13 +2094,16 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
         save_path (str, optional): Path to save the figures as PDFs.
         show (bool): If True, display the plots.
     """
-    if path_df is None:
+    if path_results_df is None:
         results = pd.read_csv(
             "./Results/ablation_study/ho_None_LGBMRegressor_results.csv"
         )
     else:
-        results = pd.read_csv(path_df)
+        results = pd.read_csv(path_results_df)
 
+    if models_folder is None:
+        models_folder = './Results/models/'
+        
     P_plot_df = results[results["Evaluation"].isin(ho_pathogen)]
     B_plot_df = results[results["Evaluation"].isin(ho_bacillus)]
     Int_plot_df = results[results["Evaluation"].isin(ho_interaction)]
@@ -2091,9 +2114,11 @@ def plot_err_by_org(path_df=None, ci_mode="bca", save_path=None, show=False):
         ci_up = []
         for row in range(df.shape[0]):
             ho_name = df["Evaluation"].iloc[row]
-            _, _, yhat, y_true = make_inference(ho_name,
+            _, _, yhat, y_true = make_inference(ho_name, 
                                         method_df_path="./Data/Datasets/fe_combinatoric_COI.csv",
-                                        models_folder="./Results/models/")
+                                        models_folder=models_folder,
+                                        y_class=y_class,
+                                        filter=filter)
             # try:
             #     method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
             #     file_list = [
@@ -2260,6 +2285,7 @@ def make_inference(ho_name,
                     method_df_path="./Data/Datasets/fe_combinatoric_COI.csv",
                     models_folder="./Results/models/",
                     filter='',
+                    y_class=None,
                     return_x_test_only=False
                     ):
     try:
@@ -2274,7 +2300,11 @@ def make_inference(ho_name,
         X_train, X_test, _, y_true = retrieve_data(method_df, ho_name)
         X_test = pipeline[:-1].transform(X_test)
         if not return_x_test_only:
-            yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+            if y_class is not None: # Filtered inference
+                yhat, mask = pipeline[-1].filtered_predict(X_test, y_class, return_mask=True).reshape(-1, 1)
+                y_true = y_true[mask]
+            else:
+                yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
         else:
             yhat = None
     except Exception as e:
@@ -2290,7 +2320,11 @@ def make_inference(ho_name,
             pipeline[:-1].fit(X_train)
         X_test = pipeline[:-1].transform(X_test)
         if not return_x_test_only:
-            yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
+            if y_class is not None: # Filtered inference
+                yhat, mask = pipeline[-1].filtered_predict(X_test, y_class, return_mask=True).reshape(-1, 1)
+                y_true = y_true[mask]
+            else:
+                yhat = pipeline[-1].predict(X_test).reshape(-1, 1)
         else:
             yhat = None
     return X_test, pipeline, yhat, y_true
@@ -2300,6 +2334,7 @@ def plot_global_SHAP(
     path_df=None,
     ho_name="1234_x_S.en",
     filter='',
+    y_class=None,
     save_path=None,
     show=False,
 ):
@@ -2317,10 +2352,13 @@ def plot_global_SHAP(
         save_path (str, optional): Base path to save the plots as PDFs.
         show (bool): If True, display the plots.
     """
+    if path_df is None:
+        path_df = "./Data/Datasets/fe_combinatoric_COI.csv"
     X_test, pipeline, _, _ = make_inference(ho_name,
-                                        method_df_path="./Data/Datasets/fe_combinatoric_COI.csv",
-                                        models_folder="./Results/models/",
+                                        method_df_path=path_df,
+                                        models_folder=path_model_folder,
                                         filter=filter,
+                                        y_class=y_class,
                                         return_x_test_only=True)
     # try:
     #     method_df = (
@@ -2346,7 +2384,11 @@ def plot_global_SHAP(
     #     if not pkl_flag:
     #         pipeline[:-1].fit(X_train)
     #     X_test = pipeline[:-1].transform(X_test)
-    explainer = shap.TreeExplainer(pipeline[-1])
+    if y_class is not None:
+        explainer = shap.TreeExplainer(pipeline[-1].estimators[y_class])
+        ho_name = f"{ho_name}_{y_class}"
+    else:
+        explainer = shap.TreeExplainer(pipeline[-1])
     shap_values = explainer.shap_values(X_test)
     plt.figure(figsize=(12, 12))
     shap.plots.bar(explainer(X_test), show=False)
@@ -2398,9 +2440,11 @@ def plot_local_SHAP(
         save_path (str, optional): Base path to save the plot as a PDF.
         show (bool): If True, display the plot.
     """
+    if path_df is None:
+        path_df = "./Data/Datasets/fe_combinatoric_COI.csv"
     X_test, pipeline, yhat, Y_test = make_inference(ho_name,
-                                        method_df_path="./Data/Datasets/fe_combinatoric_COI.csv",
-                                        models_folder="./Results/models/",
+                                        method_df_path=path_df,
+                                        models_folder=path_model_folder,
                                         filter=filter)
     # try:
     #     method_df = (Weighted MAe
@@ -2633,23 +2677,35 @@ def add_to_name(string, addon):
         return '.'.join(splitted[:-1]) + addon + splitted[-1]
     return None
 
-def run_model_analysis_plots(path_model_folder, path_df, exp_filter='', save_path=None, show=False):
-    plot_err_distrib(path_df, save_path=save_path, show=show)
-    plot_err_by_org(path_df, save_path=save_path, show=show)
+def run_model_analysis_plots(path_model_folder, 
+                             path_results_df, 
+                             exp_filter='', 
+                             y_class=None,
+                             save_path=None, 
+                             show=False):
+    plot_err_distrib(path_model_folder, path_results_df, filter=exp_filter, save_path=save_path, show=show)
+    plot_err_by_org(path_model_folder, path_results_df, filter=exp_filter, save_path=save_path, show=show)
+
     # Plot SHAP values for previously worst predicted interaction
-    plot_global_SHAP(path_model_folder, path_df, ho_name="1234_x_S.en", filter=exp_filter, save_path=save_path, show=show)
+    plot_global_SHAP(path_model_folder, y_class=y_class, ho_name="1234_x_S.en", filter=exp_filter, save_path=save_path, show=show)
     # Plot SHAP values for previously best predicted interaction
-    plot_global_SHAP(path_model_folder, path_df, ho_name="11457_x_E.ce", filter=exp_filter, save_path=save_path, show=show)
+    plot_global_SHAP(path_model_folder, y_class=y_class, ho_name="11457_x_E.ce", filter=exp_filter, save_path=save_path, show=show)
 
 def in_depth_analysis(path_model_folder, path_df,
                       separate: bool = False, 
                       exp_filter: str = '',
                       save_path: str = None, 
                       show: bool = False):
+    # path_df is the method dataset df
+    if path_df is None:
+        path_df = "./Data/Datasets/fe_combinatoric_COI.csv"
+
     # If stratified in name, if separate => Run for each stratified sub regressor, else run for the overall model
-    if 'Stratified' in path_df:
+    if 'Stratified' in exp_filter:
+        os.makedirs(f"Results/reco_exp/submodels_analysis/", exist_ok=True)
         if separate:
             from pipeline import evaluate
+            all_results = {}
             for ho_name in all_ho_names:
                 pipeline, method_df, _ = load_lgbm_model(path_model_folder, path_df, ho_name=ho_name, filter=exp_filter)
                 target = ["Score"]
@@ -2682,15 +2738,64 @@ def in_depth_analysis(path_model_folder, path_df,
                             )
                     path_df = f"Results/reco_exp/impute_bias/ho_{full_name}_results.csv"
                     results.to_csv(path_df)
-                    run_model_analysis_plots(path_model_folder, path_df, save_path, show)
+
+                    if target_class not in all_results.keys():
+                        all_results[target_class] = (results)
+                    else:
+                        all_results[target_class].append(results)
+            # For each target class, analyze results
+            for target_class in all_results.keys():
+                df = pd.concat(all_results[target_class], axis=0)
+                full_name = exp_filter + '_' + target_class
+                path_results_df = f"Results/reco_exp/submodels_analysis/ho_{full_name}_results.csv"
+                df.to_csv(path_results_df)
+                run_model_analysis_plots(path_model_folder, path_results_df, y_class=target_class, save_path=save_path, show=show)
     else:
-        run_model_analysis_plots(path_model_folder, path_df, exp_filter, save_path, show)
+        run_model_analysis_plots(path_model_folder, path_results_df, exp_filter, save_path, show)
 
 def plot_conformal(model_path_list, ci_mode='bca'):
+    from pipeline import evaluate
     # For each model, for each fold, run conformal inference
+    os.makedirs(f"./Results/reco_exp/conformal/", exist_ok=True)
+    all_models_results = []
+    # models_list = ...
+    for path_model_folder, exp_filter in models_list:
+        avg_results = []
+        for ho_name in all_ho_names:
+            pipeline, method_df, _ = load_lgbm_model(path_model_folder, path_df, ho_name=ho_name, filter=exp_filter)
+            target = ["Score"]
+            remove_cols = [
+                            "Unnamed: 0",
+                            "Unnamed: 0.1",
+                            "B_sample_ID",
+                            "P_sample_ID",
+                            "Bacillus",
+                            "Pathogene",
+                        ]
+            for target_class in pipeline[-1].estimators.keys():
+                full_name = exp_filter + '_' + target_class
+                results = evaluate(
+                            pipeline,
+                            full_name + '_',
+                            {'combinatoric':method_df},
+                            mode="ho",
+                            suffix="_hold_outs.pkl",
+                            ho_folder_path="Data/Datasets/",
+                            target=target,
+                            remove_cols=remove_cols,
+                            save=False,
+                            conformal=True,
+                            parallel=True,
+                            n_jobs_outer=12,
+                            n_jobs_model=1,
+                            batch_size=12,
+                            temp_folder="./temp_results",
+                        )
+                path_df = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
+                results.to_csv(path_df)
+                avg_results.append(results)
     # For each instance, store the interval width and a boolean that is true if the ture score is inside the interval
     # If ci_mode is not None, compute the CI of the mean interval width, plot it
-    # if ci_mode is None, plot the boxplot of conformal interval widths
     # compute the overall coverage, plot it
     pass
 
@@ -2852,14 +2957,14 @@ if __name__ == "__main__":
     elif plot_type == "plot_err_distrib":
         print("Running plot_err_distrib and saving to ./Plots/distrib_err.pdf")
         plot_err_distrib(
-            "./Results/ablation_study/ho_None_LGBMRegressor_results.csv",
+            path_results_df="./Results/ablation_study/ho_None_LGBMRegressor_results.csv",
             save_path="./Plots/distrib_err",
             show=False,
         )
     elif plot_type == "plot_err_by_org":
         print("Running plot_err_by_org and saving to ./Plots/err_by_org.pdf")
         plot_err_by_org(
-            "./Results/ablation_study/ho_None_LGBMRegressor_results.csv",
+            path_results_df="./Results/ablation_study/ho_None_LGBMRegressor_results.csv",
             save_path="./Plots/err_by_org",
             show=False,
         )

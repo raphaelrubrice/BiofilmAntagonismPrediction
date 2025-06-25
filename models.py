@@ -204,6 +204,37 @@ class StratifiedRegressor(BaseEstimator):
             return y_pred, return_used_estimators
         return y_pred
 
+    def filtered_predict(self, X, 
+                         y_class: str = None,
+                         return_mask: bool = False,
+                        return_y_oracle: bool = False,
+                        return_used_estimators: bool = False):
+        strat_masks, y_oracle = self.get_stratification_masks(X, 
+                                                              return_y_oracle=return_y_oracle)
+        mask = strat_masks[y_class]
+        y_pred = np.zeros((X[mask].shape[0],1))
+        estimator_track = np.zeros((X[mask].shape[0],1), dtype='<U7')
+        y_pred[mask] = self.estimators[y_class].predict(X[mask])
+        estimator_track[mask] = [y_class] * np.sum(mask)
+
+        # Horrible code but that should do it
+        if y_oracle is not None:
+            if return_used_estimators:
+                if return_mask:
+                    return y_pred, y_oracle, return_used_estimators, mask
+                return y_pred, y_oracle, return_used_estimators
+            if return_mask:
+                return y_pred, y_oracle, mask
+            return y_pred, y_oracle
+        if return_used_estimators:
+            if return_mask:
+                return y_pred, return_used_estimators, mask
+            return y_pred, return_used_estimators
+        if return_mask:
+            return y_pred, mask
+        return y_pred
+        
+
 def fit_submodel(base_estimator, X, Y, fit_params={}):
     return clone(base_estimator).fit(X, Y, **fit_params)
 
