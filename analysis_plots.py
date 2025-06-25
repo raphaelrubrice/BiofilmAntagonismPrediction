@@ -2078,7 +2078,7 @@ def plot_err_by_org(models_folder=None,
                     path_results_df=None, 
                     ci_mode="bca", 
                     filter='',
-                    y_class=y_class,
+                    y_class=None,
                     save_path=None, 
                     show=False):
     """
@@ -2691,7 +2691,8 @@ def run_model_analysis_plots(path_model_folder,
     # Plot SHAP values for previously best predicted interaction
     plot_global_SHAP(path_model_folder, y_class=y_class, ho_name="11457_x_E.ce", filter=exp_filter, save_path=save_path, show=show)
 
-def in_depth_analysis(path_model_folder, path_df,
+def in_depth_analysis(path_model_folder, 
+                      path_df=None,
                       separate: bool = False, 
                       exp_filter: str = '',
                       save_path: str = None, 
@@ -2701,57 +2702,57 @@ def in_depth_analysis(path_model_folder, path_df,
         path_df = "./Data/Datasets/fe_combinatoric_COI.csv"
 
     # If stratified in name, if separate => Run for each stratified sub regressor, else run for the overall model
-    if 'Stratified' in exp_filter:
+    if ('Stratified' in exp_filter) and separate:
         os.makedirs(f"Results/reco_exp/submodels_analysis/", exist_ok=True)
-        if separate:
-            from pipeline import evaluate
-            all_results = {}
-            for ho_name in all_ho_names:
-                pipeline, method_df, _ = load_lgbm_model(path_model_folder, path_df, ho_name=ho_name, filter=exp_filter)
-                target = ["Score"]
-                remove_cols = [
-                                "Unnamed: 0",
-                                "Unnamed: 0.1",
-                                "B_sample_ID",
-                                "P_sample_ID",
-                                "Bacillus",
-                                "Pathogene",
-                            ]
-                for target_class in pipeline[-1].estimators.keys():
-                    full_name = exp_filter + '_' + target_class
-                    results = evaluate(
-                                pipeline,
-                                full_name + '_',
-                                {'combinatoric':method_df},
-                                mode="ho",
-                                suffix="_hold_outs.pkl",
-                                ho_folder_path="Data/Datasets/",
-                                target=target,
-                                remove_cols=remove_cols,
-                                save=False,
-                                y_class=target_class,
-                                parallel=True,
-                                n_jobs_outer=12,
-                                n_jobs_model=1,
-                                batch_size=12,
-                                temp_folder="./temp_results",
-                            )
-                    path_df = f"Results/reco_exp/impute_bias/ho_{full_name}_results.csv"
-                    results.to_csv(path_df)
-
-                    if target_class not in all_results.keys():
-                        all_results[target_class] = (results)
-                    else:
-                        all_results[target_class].append(results)
-            # For each target class, analyze results
-            for target_class in all_results.keys():
-                df = pd.concat(all_results[target_class], axis=0)
+        from pipeline import evaluate
+        all_results = {}
+        for ho_name in all_ho_names:
+            pipeline, method_df, _ = load_lgbm_model(path_model_folder, path_df, ho_name=ho_name, filter=exp_filter)
+            target = ["Score"]
+            remove_cols = [
+                            "Unnamed: 0",
+                            "Unnamed: 0.1",
+                            "B_sample_ID",
+                            "P_sample_ID",
+                            "Bacillus",
+                            "Pathogene",
+                        ]
+            for target_class in pipeline[-1].estimators.keys():
                 full_name = exp_filter + '_' + target_class
-                path_results_df = f"Results/reco_exp/submodels_analysis/ho_{full_name}_results.csv"
-                df.to_csv(path_results_df)
-                run_model_analysis_plots(path_model_folder, path_results_df, y_class=target_class, save_path=save_path, show=show)
+                results = evaluate(
+                            pipeline,
+                            full_name + '_',
+                            {'combinatoric':method_df},
+                            mode="ho",
+                            suffix="_hold_outs.pkl",
+                            ho_folder_path="Data/Datasets/",
+                            target=target,
+                            remove_cols=remove_cols,
+                            save=False,
+                            y_class=target_class,
+                            parallel=True,
+                            n_jobs_outer=12,
+                            n_jobs_model=1,
+                            batch_size=12,
+                            temp_folder="./temp_results",
+                        )
+                path_results_df = f"Results/reco_exp/impute_bias/ho_{full_name}_results.csv"
+                results.to_csv(path_results_df)
+
+                if target_class not in all_results.keys():
+                    all_results[target_class] = (results)
+                else:
+                    all_results[target_class].append(results)
+        # For each target class, analyze results
+        for target_class in all_results.keys():
+            df = pd.concat(all_results[target_class], axis=0)
+            full_name = exp_filter + '_' + target_class
+            path_results_df = f"Results/reco_exp/submodels_analysis/ho_{full_name}_results.csv"
+            df.to_csv(path_results_df)
+            run_model_analysis_plots(path_model_folder, path_results_df, y_class=target_class, save_path=save_path, show=show)
     else:
-        run_model_analysis_plots(path_model_folder, path_results_df, exp_filter, save_path, show)
+        path_results_df = f"./Results/reco_exp/impute_bias/ho_{exp_filter}LGBMRegressor_results.csv"
+        run_model_analysis_plots(path_model_folder, path_results_df, exp_filter, save_path=save_path, show=show)
 
 def plot_conformal(model_path_list, ci_mode='bca'):
     from pipeline import evaluate
@@ -3002,8 +3003,7 @@ if __name__ == "__main__":
     elif plot_type == "in_depth_analysis":
         # Plot in_depth best normal no impute
         print("Making plots for an in-depth analysis for best, normal, no imputation model..")
-        in_depth_analysis("./Results/reco_exp_models/impute_bias/", 
-                          f"./Results/reco_exp/impute_bias/ho_NoImpute_NormalLGBMRegressor_results.csv",
+        in_depth_analysis("./Results/reco_exp_models/impute_bias/",
                         separate= False, 
                         exp_filter='NoImpute_Normal',
                         save_path="./Plots/best_normal_no_impute", 
@@ -3012,7 +3012,6 @@ if __name__ == "__main__":
         # Plot in_depth best stratified
         print("Making plots for an in-depth analysis for best, stratified model..")
         in_depth_analysis("./Results/reco_exp_models/impute_bias/", 
-                          f"./Results/reco_exp/impute_bias/ho_NoImpute_Custom_Mixed_StratifiedLGBMRegressor_results.csv",
                         separate= False, 
                         exp_filter='NoImpute_Custom_Mixed_Stratified',
                         save_path="./Plots/best_stratified", 
@@ -3020,8 +3019,7 @@ if __name__ == "__main__":
         
         # Plot in_depth best stratified (separated)
         print("Making SEPARATED plots for an in-depth analysis for best, stratified model..")
-        in_depth_analysis("./Results/reco_exp_models/impute_bias/", 
-                          f"./Results/reco_exp/impute_bias/ho_NoImpute_Custom_Mixed_StratifiedLGBMRegressor_results.csv",
+        in_depth_analysis("./Results/reco_exp_models/impute_bias/",
                         separate= True, 
                         exp_filter='NoImpute_Custom_Mixed_Stratified',
                         save_path="./Plots/best_stratified_separated", 
