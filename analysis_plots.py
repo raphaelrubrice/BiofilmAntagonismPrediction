@@ -2707,7 +2707,11 @@ def in_depth_analysis(path_model_folder,
         from pipeline import evaluate
         all_results = {}
         for ho_name in all_ho_names:
-            pipeline, method_df, _ = load_lgbm_model(path_model_folder, path_df, ho_name=ho_name, filter=exp_filter)
+            pipeline, method_df, _ = load_lgbm_model(path_model_folder=path_model_folder, 
+                                                     path_df=path_df, 
+                                                     ho_name=ho_name, 
+                                                     filter=exp_filter)
+            print(method_df.head())
             target = ["Score"]
             remove_cols = [
                             "Unnamed: 0",
