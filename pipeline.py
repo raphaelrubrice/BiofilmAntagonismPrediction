@@ -50,7 +50,7 @@ from sklearn.metrics import (
     root_mean_squared_error,
     r2_score,
 )
-
+from sklearn.model_selection import train_test_split
 from mapie.regression import SplitConformalRegressor
 
 from joblib import Memory, Parallel, delayed
@@ -191,12 +191,23 @@ def predict_in_chunks(estimator, X, chunk_size=2048, y_class: str = None):
         # If y_class is passed we assume that the estimator is a StratifiedRegressor object
         if y_class is not None:
             if isinstance(estimator, Pipeline):
-                preds.append(estimator[-1].filtered_predict(chunk, y_class=y_class, pipeline=estimator[:-1]))
+                out = estimator[-1].filtered_predict(chunk, 
+                                                      y_class=y_class, 
+                                                      pipeline=estimator[:-1])
+                if out is not None:
+                  preds.append(out.ravel())
             else:
-                preds.append(estimator.filtered_predict(chunk, y_class=y_class))
+                out = estimator.filtered_predict(chunk, 
+                                                  y_class=y_class)
+                if out is not None:
+                  preds.append(out.ravel())
         else:
             preds.append(estimator.predict(chunk))
-    return np.concatenate(preds).ravel()
+    # print(preds)
+    try:
+        return np.concatenate(preds).ravel()
+    except:
+        return None
 
 
 def gpu_cleanup():
@@ -273,13 +284,17 @@ def evaluate_hold_out(
     gpu_cleanup()
 
     y_test_arr = y_test.to_numpy()
-    mae = mean_absolute_error(y_test, yhat)
-    try:
-        rmse = root_mean_squared_error(y_test, yhat)
-    except Exception as e:
+    if yhat is not None:
+        mae = mean_absolute_error(y_test, yhat)
+        try:
+            rmse = root_mean_squared_error(y_test, yhat)
+        except Exception as e:
+            rmse = np.nan
+    else:
+        mae = np.nan
         rmse = np.nan
 
-    n_samples = yhat.shape[0]
+    n_samples = y_test.shape[0]    
     results = {
         "Evaluation": [ho_name],
         "Method": [method_name],

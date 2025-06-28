@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
-from sklearn.base import TransformerMixin, clone, BaseEstimator
+from sklearn.base import TransformerMixin, RegressorMixin, clone, BaseEstimator
 from sklearn.model_selection import train_test_split
 from joblib import Memory, Parallel, delayed
+from lightgbm import LGBMRegressor
 
 class NaNFilter(TransformerMixin):
     """
@@ -56,8 +57,8 @@ class NaNFilter(TransformerMixin):
 
     def fit_transform(self, X, y=None, **fit_params):
         return self.fit(X, y=y, **fit_params).transform(X)
-    
-class StratifiedRegressor(BaseEstimator):
+
+class StratifiedRegressor(LGBMRegressor):
     """
     Implements stratified regression using the provided estimator.
     """
@@ -69,7 +70,6 @@ class StratifiedRegressor(BaseEstimator):
                  mixed_training: bool = False,
                  random_state: int = 6262):
         super().__init__()
-        self.__class__ = base_estimator.__class__
         self.base_estimator = base_estimator
         self.mode = mode
         if self.mode != 'quantile':
@@ -80,6 +80,7 @@ class StratifiedRegressor(BaseEstimator):
         self.n_jobs = n_jobs # Per estimator threads
         self.parallel = parallel # Fit all estimators simultaneously
         self.mixed_training = mixed_training
+        self.is_fitted_ = False
         self.__sklearn_tags__ = self.base_estimator.__sklearn_tags__
 
     def split(self, X, y):
@@ -114,7 +115,8 @@ class StratifiedRegressor(BaseEstimator):
             for key, val in splitted.items():
                 X_train, Y_train = val[0], val[1]
                 self.estimators[key] = fit_submodel(self.base_estimator, X_train, Y_train, fit_params)
-        self.booster_ = BoosterWrapper(self.estimators)
+        # self.booster_ = BoosterWrapper(self.estimators)
+        self.is_fitted_ = True
         return self
 
     def mixed_fit(self, splitted, fit_params={}):
@@ -143,7 +145,8 @@ class StratifiedRegressor(BaseEstimator):
             for key, val in mixed_splitted.items():
                 X_train, Y_train = val[0], val[1]
                 self.estimators[key] = fit_submodel(self.base_estimator, X_train, Y_train, fit_params)
-        self.booster_ = BoosterWrapper(self.estimators)
+        # self.booster_ = BoosterWrapper(self.estimators)
+        self.is_fitted_ = True
         return self
 
     def fit(self, X, y, fit_params={}):
@@ -213,13 +216,24 @@ class StratifiedRegressor(BaseEstimator):
                         return_used_estimators: bool = False):
         if pipeline is not None:
             X = pipeline.transform(X)
-        strat_masks, y_oracle = self.get_stratification_masks(X, 
+        if y_class == 'oracle':
+            strat_masks, y_oracle = self.get_stratification_masks(X, 
+                                                              return_y_oracle=True)
+            mask = None
+            y_pred = y_oracle
+            estimator_track = np.zeros((X.shape[0],1), dtype='<U7')
+            estimator_track = [y_class] * X.shape[0]
+        else:
+            strat_masks, y_oracle = self.get_stratification_masks(X, 
                                                               return_y_oracle=return_y_oracle)
-        mask = strat_masks[y_class]
-        y_pred = np.zeros((X[mask].shape[0],1))
-        estimator_track = np.zeros((X[mask].shape[0],1), dtype='<U7')
-        y_pred[mask] = self.estimators[y_class].predict(X[mask])
-        estimator_track[mask] = [y_class] * np.sum(mask)
+            if y_class in strat_masks.keys():
+                mask = strat_masks[y_class]
+                y_pred = np.zeros((X[mask].shape[0],1))
+                estimator_track = np.zeros((X[mask].shape[0],1), dtype='<U7')
+                y_pred[mask] = self.estimators[y_class].predict(X[mask])
+                estimator_track[mask] = [y_class] * np.sum(mask)
+            else:
+                return None
 
         # Horrible code but that should do it
         if y_oracle is not None:
@@ -229,6 +243,8 @@ class StratifiedRegressor(BaseEstimator):
                 return y_pred, y_oracle, return_used_estimators
             if return_mask:
                 return y_pred, y_oracle, mask
+            if y_class == 'oracle':
+                return y_pred
             return y_pred, y_oracle
         if return_used_estimators:
             if return_mask:
@@ -237,6 +253,10 @@ class StratifiedRegressor(BaseEstimator):
         if return_mask:
             return y_pred, mask
         return y_pred
+      
+    @property
+    def booster_(self):
+      return BoosterWrapper(self.estimators)
         
 
 def fit_submodel(base_estimator, X, Y, fit_params={}):
