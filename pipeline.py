@@ -1,3 +1,4 @@
+from numpy.ma.core import masked_less
 import pandas as pd
 import numpy as np
 import pickle as pkl
@@ -185,29 +186,42 @@ def downcast_df(df):
 # --- Helper for chunked prediction and GPU cleanup ---
 def predict_in_chunks(estimator, X, chunk_size=2048, y_class: str = None):
     preds = []
+    masks = None
     for start in range(0, X.shape[0], chunk_size):
         chunk = X.iloc[start : start + chunk_size]
 
         # If y_class is passed we assume that the estimator is a StratifiedRegressor object
         if y_class is not None:
             if isinstance(estimator, Pipeline):
-                out = estimator[-1].filtered_predict(chunk, 
+                out, mask = estimator[-1].filtered_predict(chunk, 
                                                       y_class=y_class, 
+                                                      return_mask=True,
                                                       pipeline=estimator[:-1])
-                if out is not None:
-                  preds.append(out.ravel())
             else:
-                out = estimator.filtered_predict(chunk, 
+                out, mask = estimator.filtered_predict(chunk, return_mask=True,
                                                   y_class=y_class)
-                if out is not None:
-                  preds.append(out.ravel())
+            if out is not None:
+                preds.append(out.ravel())
+            if mask is None:
+                mask = np.array([False] * chunk.shape[0]).ravel()
+            
+            if masks is None:
+                masks = [mask]
+            else:
+                masks.append(mask)
+            
         else:
             preds.append(estimator.predict(chunk))
     # print(preds)
+    if masks is not None:
+        try:
+            return np.concatenate(preds).ravel(), np.concatenate(masks).ravel()
+        except:
+            return None, np.concatenate(masks).ravel()
     try:
-        return np.concatenate(preds).ravel()
+        return np.concatenate(preds).ravel(), masks
     except:
-        return None
+        return None, masks
 
 
 def gpu_cleanup():
@@ -232,6 +246,7 @@ def evaluate_hold_out(
     mode="normal",
     y_class: str = None,
     conformal: bool = False,
+    inference: bool = False,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -271,17 +286,21 @@ def evaluate_hold_out(
                                                                             shuffle=True, 
                                                                             random_state=random_state)
         estimator.conformalize(X_conformalize, y_conformalize)
-        
-    estimator.fit(X_train, np.ravel(y_train))
-    gpu_cleanup()
+
+    if not inference:
+        estimator.fit(X_train, np.ravel(y_train))
+        gpu_cleanup()
 
     if conformal:
-        yhat, yhat_intervals = predict_in_chunks(estimator, X_test, y_class=y_class, conformal=conformal)
+        yhat, yhat_intervals, mask = predict_in_chunks(estimator, X_test, y_class=y_class, conformal=conformal)
         widths = np.abs(yhat_intervals[:,1] - yhat_intervals[:,0])
         coverage = np.where((yhat >= yhat_intervals[:,0]) & (yhat <= yhat_intervals[:,1]), 1, 0).mean()
     else:
-        yhat = predict_in_chunks(estimator, X_test, y_class=y_class)
+        yhat, mask = predict_in_chunks(estimator, X_test, y_class=y_class)
     gpu_cleanup()
+
+    if mask is not None:
+      y_test = y_test[mask]
 
     y_test_arr = y_test.to_numpy()
     if yhat is not None:
@@ -375,6 +394,7 @@ def evaluate_method_disk_batched(
     shuffle=False,
     y_class = None,
     conformal: bool = False,
+    inference: bool = False,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -443,6 +463,7 @@ def evaluate_method_disk_batched(
                         shuffle=shuffle,
                         y_class=y_class,
                         conformal=conformal,
+                        inference=inference,
                         random_state=random_state,
                         save=save,
                         save_path=save_path,
@@ -464,6 +485,7 @@ def evaluate_method_disk_batched(
                         shuffle=shuffle,
                         y_class=y_class,
                         conformal=conformal,
+                        inference=inference,
                         random_state=random_state,
                         save=save,
                         save_path=save_path,
@@ -514,6 +536,7 @@ def evaluate_method(
     shuffle=False,
     y_class = None,
     conformal: bool = False,
+    inference: bool = False,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -534,6 +557,7 @@ def evaluate_method(
             shuffle=shuffle,
             y_class=y_class,
             conformal=conformal,
+            inference=inference,
             random_state=random_state,
             save=save,
             save_path=save_path,
@@ -556,6 +580,7 @@ def evaluate(
     shuffle=False,
     y_class = None,
     conformal=False,
+    inference: bool = False,
     random_state=62,
     save=False,
     save_path="./Results/models/",
@@ -592,6 +617,7 @@ def evaluate(
                     shuffle=shuffle,
                     y_class=y_class,
                     conformal=conformal,
+                    inference=inference,
                     random_state=random_state,
                     save=save,
                     save_path=save_path,
@@ -614,6 +640,7 @@ def evaluate(
                     shuffle=shuffle,
                     y_class=y_class,
                     conformal=conformal,
+                    inference=inference,
                     random_state=random_state,
                     save=save,
                     save_path=save_path,

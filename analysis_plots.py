@@ -2681,20 +2681,23 @@ def run_model_analysis_plots(path_model_folder,
                              path_results_df, 
                              exp_filter='', 
                              y_class=None,
-                             save_path=None, 
+                             save_path=None,
+                             shap=False, 
                              show=False):
     plot_err_distrib(path_model_folder, path_results_df, filter=exp_filter, save_path=save_path, show=show)
     plot_err_by_org(path_model_folder, path_results_df, filter=exp_filter, save_path=save_path, show=show)
 
-    # Plot SHAP values for previously worst predicted interaction
-    plot_global_SHAP(path_model_folder, y_class=y_class, ho_name="1234_x_S.en", filter=exp_filter, save_path=save_path, show=show)
-    # Plot SHAP values for previously best predicted interaction
-    plot_global_SHAP(path_model_folder, y_class=y_class, ho_name="11457_x_E.ce", filter=exp_filter, save_path=save_path, show=show)
+    if shap:
+        # Plot SHAP values for previously worst predicted interaction
+        plot_global_SHAP(path_model_folder, y_class=y_class, ho_name="1234_x_S.en", filter=exp_filter, save_path=save_path, show=show)
+        # Plot SHAP values for previously best predicted interaction
+        plot_global_SHAP(path_model_folder, y_class=y_class, ho_name="11457_x_E.ce", filter=exp_filter, save_path=save_path, show=show)
 
 def in_depth_analysis(path_model_folder, 
                       path_df=None,
                       separate: bool = False, 
                       exp_filter: str = '',
+                      shap=False,
                       save_path: str = None, 
                       show: bool = False):
     # path_df is the method dataset df
@@ -2734,6 +2737,7 @@ def in_depth_analysis(path_model_folder,
                             remove_cols=remove_cols,
                             save=False,
                             y_class=target_class,
+                            inference=True,
                             parallel=True,
                             n_jobs_outer=12,
                             n_jobs_model=1,
@@ -2744,7 +2748,7 @@ def in_depth_analysis(path_model_folder,
                 results.to_csv(path_results_df)
 
                 if target_class not in all_results.keys():
-                    all_results[target_class] = (results)
+                    all_results[target_class] = [results]
                 else:
                     all_results[target_class].append(results)
         # For each target class, analyze results
@@ -2753,16 +2757,17 @@ def in_depth_analysis(path_model_folder,
             full_name = exp_filter + '_' + target_class
             path_results_df = f"Results/reco_exp/submodels_analysis/ho_{full_name}_results.csv"
             df.to_csv(path_results_df)
-            run_model_analysis_plots(path_model_folder, path_results_df, y_class=target_class, save_path=save_path, show=show)
+            run_model_analysis_plots(path_model_folder, path_results_df, shap=shap, y_class=target_class, save_path=save_path, show=show)
     else:
         path_results_df = f"./Results/reco_exp/impute_bias/ho_{exp_filter}LGBMRegressor_results.csv"
-        run_model_analysis_plots(path_model_folder, path_results_df, exp_filter, save_path=save_path, show=show)
+        run_model_analysis_plots(path_model_folder, path_results_df, exp_filter, shap=shap, save_path=save_path, show=show)
 
 def plot_conformal(model_path_list, ci_mode='bca'):
     from pipeline import evaluate
     # For each model, for each fold, run conformal inference
     os.makedirs(f"./Results/reco_exp/conformal/", exist_ok=True)
-    all_models_results = []
+    widths_df = {"Experiment":[],"Width":[]}
+    coverage_df = {"Experiment":[], "Coverage":[], "CI95_low":[], "CI95_up":[]}
     # models_list = ...
     for path_model_folder, exp_filter in models_list:
         avg_results = []
@@ -2778,6 +2783,7 @@ def plot_conformal(model_path_list, ci_mode='bca'):
                             "Pathogene",
                         ]
             for target_class in pipeline[-1].estimators.keys():
+
                 full_name = exp_filter + '_' + target_class
                 results = evaluate(
                             pipeline,
@@ -2790,6 +2796,7 @@ def plot_conformal(model_path_list, ci_mode='bca'):
                             remove_cols=remove_cols,
                             save=False,
                             conformal=True,
+                            inference=True,
                             parallel=True,
                             n_jobs_outer=12,
                             n_jobs_model=1,
@@ -2799,6 +2806,17 @@ def plot_conformal(model_path_list, ci_mode='bca'):
                 path_df = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
                 results.to_csv(path_df)
                 avg_results.append(results)
+            all_ho_results = pd.concat(avg_results, axis=0)
+            avg = np.mean(all_ho_results["Coverage"])
+            low, up = compute_CI(all_ho_results["Coverage"], 
+                       num_iter=5000, 
+                       confidence=95, 
+                       seed=6262, 
+                       stat_func=stat_func, 
+                       mode="bca")
+            low, up = abs(low - avg), abs(up - avg)
+            coverage_df["CI95_low"].append(low)
+            coverage_df["CI95_up"].append(up)
     # For each instance, store the interval width and a boolean that is true if the ture score is inside the interval
     # If ci_mode is not None, compute the CI of the mean interval width, plot it
     # compute the overall coverage, plot it
@@ -3006,20 +3024,22 @@ if __name__ == "__main__":
 
     elif plot_type == "in_depth_analysis":
         # Plot in_depth best normal no impute
-        print("Making plots for an in-depth analysis for best, normal, no imputation model..")
-        in_depth_analysis("./Results/reco_exp_models/impute_bias/",
-                        separate= False, 
-                        exp_filter='NoImpute_Normal',
-                        save_path="./Plots/best_normal_no_impute", 
-                        show=False)
+        # print("Making plots for an in-depth analysis for best, normal, no imputation model..")
+        # in_depth_analysis("./Results/reco_exp_models/impute_bias/",
+        #                 separate= False, 
+        #                 exp_filter='NoImpute_Normal',
+        #                 save_path="./Plots/best_normal_no_impute", 
+        #                 shap=True,
+        #                 show=False)
         
-        # Plot in_depth best stratified
-        print("Making plots for an in-depth analysis for best, stratified model..")
-        in_depth_analysis("./Results/reco_exp_models/impute_bias/", 
-                        separate= False, 
-                        exp_filter='NoImpute_Custom_Mixed_Stratified',
-                        save_path="./Plots/best_stratified", 
-                        show=False)
+        # # Plot in_depth best stratified
+        # print("Making plots for an in-depth analysis for best, stratified model..")
+        # in_depth_analysis("./Results/reco_exp_models/impute_bias/", 
+        #                 separate= False, 
+        #                 exp_filter='NoImpute_Custom_Mixed_Stratified',
+        #                 save_path="./Plots/best_stratified", 
+        #                 shap=False,
+        #                 show=False)
         
         # Plot in_depth best stratified (separated)
         print("Making SEPARATED plots for an in-depth analysis for best, stratified model..")
@@ -3027,4 +3047,5 @@ if __name__ == "__main__":
                         separate= True, 
                         exp_filter='NoImpute_Custom_Mixed_Stratified',
                         save_path="./Plots/best_stratified_separated", 
+                        shap=False,
                         show=False)

@@ -219,7 +219,7 @@ class StratifiedRegressor(LGBMRegressor):
         if y_class == 'oracle':
             strat_masks, y_oracle = self.get_stratification_masks(X, 
                                                               return_y_oracle=True)
-            mask = None
+            mask = y_oracle > -1 # mask full of true
             y_pred = y_oracle
             estimator_track = np.zeros((X.shape[0],1), dtype='<U7')
             estimator_track = [y_class] * X.shape[0]
@@ -228,23 +228,38 @@ class StratifiedRegressor(LGBMRegressor):
                                                               return_y_oracle=return_y_oracle)
             if y_class in strat_masks.keys():
                 mask = strat_masks[y_class]
-                y_pred = np.zeros((X[mask].shape[0],1))
-                estimator_track = np.zeros((X[mask].shape[0],1), dtype='<U7')
-                y_pred[mask] = self.estimators[y_class].predict(X[mask])
-                estimator_track[mask] = [y_class] * np.sum(mask)
+                # print("\nMASK", mask, mask.shape)
+                # y_pred = np.zeros((X[mask].shape[0],1))
+                y_pred = np.zeros((X.shape[0],1))
+                # print("\nYPRED", y_pred, y_pred.shape)
+                # estimator_track = np.zeros((X[mask].shape[0],1), dtype='<U7')
+                estimator_track = np.zeros((X.shape[0],1), dtype='<U7')
+                y_pred[mask] = self.estimators[y_class].predict(X[mask]).reshape(-1,1)
+                y_pred = y_pred[mask]
+                estimator_track[mask] = np.array([y_class] * np.sum(mask)).reshape(-1,1)
+                estimator_track = estimator_track[mask]
             else:
-                return None
+              if return_mask:
+                  return None, None
+              return None
 
         # Horrible code but that should do it
         if y_oracle is not None:
+            if y_class == 'oracle':
+                if return_used_estimators:
+                    if return_mask:
+                        return y_pred, return_used_estimators, mask
+                    return y_pred, return_used_estimators
+                if return_mask:
+                    return y_pred, mask
+                return y_pred
+
             if return_used_estimators:
                 if return_mask:
                     return y_pred, y_oracle, return_used_estimators, mask
                 return y_pred, y_oracle, return_used_estimators
             if return_mask:
                 return y_pred, y_oracle, mask
-            if y_class == 'oracle':
-                return y_pred
             return y_pred, y_oracle
         if return_used_estimators:
             if return_mask:
