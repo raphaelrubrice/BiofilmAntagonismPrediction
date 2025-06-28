@@ -207,9 +207,12 @@ class StratifiedRegressor(BaseEstimator):
 
     def filtered_predict(self, X, 
                          y_class: str = None,
+                         pipeline = None,
                          return_mask: bool = False,
                         return_y_oracle: bool = False,
                         return_used_estimators: bool = False):
+        if pipeline is not None:
+            X = pipeline.transform(X)
         strat_masks, y_oracle = self.get_stratification_masks(X, 
                                                               return_y_oracle=return_y_oracle)
         mask = strat_masks[y_class]

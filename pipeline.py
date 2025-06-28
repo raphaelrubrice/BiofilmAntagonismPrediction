@@ -191,7 +191,7 @@ def predict_in_chunks(estimator, X, chunk_size=2048, y_class: str = None):
         # If y_class is passed we assume that the estimator is a StratifiedRegressor object
         if y_class is not None:
             if isinstance(estimator, Pipeline):
-                preds.append(estimator[-1].filtered_predict(chunk, y_class=y_class))
+                preds.append(estimator[-1].filtered_predict(chunk, y_class=y_class, pipeline=estimator[:-1]))
             else:
                 preds.append(estimator.filtered_predict(chunk, y_class=y_class))
         else:
