@@ -187,6 +187,8 @@ def downcast_df(df):
 def predict_in_chunks(estimator, X, chunk_size=2048, y_class: str = None):
     preds = []
     masks = None
+    if conformal:
+        intervals = []
     for start in range(0, X.shape[0], chunk_size):
         chunk = X.iloc[start : start + chunk_size]
 
@@ -211,16 +213,28 @@ def predict_in_chunks(estimator, X, chunk_size=2048, y_class: str = None):
                 masks.append(mask)
             
         else:
+            if conformal:
+                yhat, y_intervals = estimator.predict_interval(chunk)
+                preds.append(yhat)
+                intervals.append(y_intervals)
             preds.append(estimator.predict(chunk))
     # print(preds)
     if masks is not None:
         try:
+            if conformal:
+                return np.concatenate(preds).ravel(), np.concatenate(intervals), np.concatenate(masks).ravel()
             return np.concatenate(preds).ravel(), np.concatenate(masks).ravel()
         except:
+            if conformal:
+                return None, None, np.concatenate(masks).ravel()
             return None, np.concatenate(masks).ravel()
     try:
+        if conformal:
+            return np.concatenate(preds).ravel(), np.concatenate(intervals), masks
         return np.concatenate(preds).ravel(), masks
     except:
+        if conformal:
+            return None, None, masks
         return None, masks
 
 
@@ -285,13 +299,13 @@ def evaluate_hold_out(
                                                                             test_size=0.2, 
                                                                             shuffle=True, 
                                                                             random_state=random_state)
-        estimator.conformalize(X_conformalize, y_conformalize)
 
     if not inference:
         estimator.fit(X_train, np.ravel(y_train))
         gpu_cleanup()
 
     if conformal:
+        estimator.conformalize(X_conformalize, y_conformalize)
         yhat, yhat_intervals, mask = predict_in_chunks(estimator, X_test, y_class=y_class, conformal=conformal)
         widths = np.abs(yhat_intervals[:,1] - yhat_intervals[:,0])
         coverage = np.where((yhat >= yhat_intervals[:,0]) & (yhat <= yhat_intervals[:,1]), 1, 0).mean()
