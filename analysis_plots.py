@@ -27,6 +27,7 @@ from arch.bootstrap import IIDBootstrap
 
 from datasets import all_possible_hold_outs, get_hold_out_sets, get_train_test_split
 from pipeline import evaluate
+from models import StratifiedRegressor
 
 all_ho_names = all_possible_hold_outs(return_names=True)
 ho_org = [name for name in all_ho_names if "_x_" not in name]
@@ -2792,6 +2793,9 @@ def make_in_depth_paths(path_model_folder,
 
         # iterate hold-out names
         for ho_name in all_ho_names[:3]:
+            pl, df0, _ = load_lgbm_model(path_model_folder, path_df, ho_name, filter=exp_filter)
+            target = ["Score"]
+            remove_cols = ["Unnamed: 0", "Unnamed: 0.1", "B_sample_ID", "P_sample_ID", "Bacillus", "Pathogene"]
             for target_class in pl[-1].estimators.keys():
                 fname = f"ho_{exp_filter}_{target_class}_results.csv"
                 out_csv = os.path.join(sub_out, fname)
