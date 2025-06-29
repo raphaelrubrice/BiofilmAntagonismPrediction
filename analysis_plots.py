@@ -2039,7 +2039,8 @@ def plot_err_distrib(models_folder=None,
     )
     for i, patch in enumerate(ax.patches):
         x_center = patch.get_x() + patch.get_width() / 2.0
-        y_top = patch.get_height() + intervals2[1, i]
+        x_center += + patch.get_width() / 3.0
+        y_top = patch.get_height() #+ intervals2[1, i]
         label = f"{patch.get_height():.3f}"
         ax.text(
             x_center,
@@ -2911,7 +2912,6 @@ def plot_in_depth_analysis(path_model_folder,
         path_model_folder, exp_filter, output_paths = make_in_depth_data(path_model_folder,
                                                                         path_df=path_df,
                                                                         exp_filter=exp_filter,
-                                                                        shap=shap,
                                                                         separate=separate,
                                                                         force_recompute=True)
     else:
@@ -2927,7 +2927,6 @@ def plot_in_depth_analysis(path_model_folder,
             path_model_folder, exp_filter, output_paths = make_in_depth_data(path_model_folder,
                                                                             path_df=path_df,
                                                                             exp_filter=exp_filter,
-                                                                            shap=shap,
                                                                             separate=separate,
                                                                             force_recompute=False)
     plot_in_depth_data(output_paths, path_model_folder, exp_filter, 
@@ -3456,6 +3455,7 @@ if __name__ == "__main__":
                         exp_filter='NoImpute_Custom_Mixed_Stratified',
                         save_path="./Plots/best_stratified_separated", 
                         shap=False,
+                        force_recompute=True,
                         show=False)
     elif plot_type == "conformal":
         path_model_folder = "./Results/reco_exp_models/impute_bias/"

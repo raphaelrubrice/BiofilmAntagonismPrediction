@@ -184,7 +184,7 @@ def downcast_df(df):
 
 
 # --- Helper for chunked prediction and GPU cleanup ---
-def predict_in_chunks(estimator, X, chunk_size=2048, y_class: str = None):
+def predict_in_chunks(estimator, X, chunk_size=2048, y_class: str = None, conformal=False):
     preds = []
     masks = None
     if conformal:
@@ -217,7 +217,8 @@ def predict_in_chunks(estimator, X, chunk_size=2048, y_class: str = None):
                 yhat, y_intervals = estimator.predict_interval(chunk)
                 preds.append(yhat)
                 intervals.append(y_intervals)
-            preds.append(estimator.predict(chunk))
+            else:
+                preds.append(estimator.predict(chunk))
     # print(preds)
     if masks is not None:
         try:
