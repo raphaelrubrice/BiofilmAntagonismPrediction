@@ -2804,7 +2804,7 @@ def make_in_depth_paths(path_model_folder,
 
     else:
         path_results_df = f"./Results/reco_exp/impute_bias/ho_{exp_filter}LGBMRegressor_results.csv"
-        output_paths.append(out_csv)
+        output_paths.append(path_results_df)
     return path_model_folder, exp_filter, output_paths
 
 def make_in_depth_data(path_model_folder,
@@ -2872,7 +2872,7 @@ def make_in_depth_data(path_model_folder,
 
     else:
         path_results_df = f"./Results/reco_exp/impute_bias/ho_{exp_filter}LGBMRegressor_results.csv"
-        output_paths.append(out_csv)
+        output_paths.append(path_results_df)
     return path_model_folder, exp_filter, output_paths
 
 def plot_in_depth_data(output_paths, path_model_folder, exp_filter, shap=False, save_path=None, show=False):
@@ -3051,8 +3051,37 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
                 "Unnamed: 0", "Unnamed: 0.1", "B_sample_ID",
                 "P_sample_ID", "Bacillus", "Pathogene",
             ]
-            for target_class in pipeline[-1].estimators.keys():
-                full_name = exp_filter + '_' + target_class
+            if isinstance(pipeline[-1], StratifiedRegressor):
+                for target_class in pipeline[-1].estimators.keys():
+                    full_name = exp_filter + '_' + target_class
+                    results = evaluate(
+                        pipeline,
+                        full_name + '_',
+                        {'combinatoric': method_df},
+                        mode="ho",
+                        suffix="_hold_outs.pkl",
+                        ho_folder_path="Data/Datasets/",
+                        target=target,
+                        remove_cols=remove_cols,
+                        save=False,
+                        conformal=True,
+                        y_class=target_class,
+                        inference=True,
+                        parallel=True,
+                        n_jobs_outer=12,
+                        n_jobs_model=1,
+                        batch_size=12,
+                        temp_folder="./temp_results",
+                    )
+                    path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
+                    results.to_csv(path_df_out)
+                    avg_results.append(results)
+                    widths_df["Width"] += list(results["Width"])
+                    widths_df["Experiment"] += [exp_filter] * len(results)
+                    widths_df["Evaluation"] += [ho_name] * len(results)
+                    widths_df["target_class"] += [target] * len(results)
+            else:
+                full_name = exp_filter
                 results = evaluate(
                     pipeline,
                     full_name + '_',
