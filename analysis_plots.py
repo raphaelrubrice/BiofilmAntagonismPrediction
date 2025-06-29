@@ -26,6 +26,7 @@ from statsmodels.graphics.gofplots import qqplot
 from arch.bootstrap import IIDBootstrap
 
 from datasets import all_possible_hold_outs, get_hold_out_sets, get_train_test_split
+from pipeline import evaluate
 
 all_ho_names = all_possible_hold_outs(return_names=True)
 ho_org = [name for name in all_ho_names if "_x_" not in name]
@@ -1987,6 +1988,7 @@ def plot_err_distrib(models_folder=None,
         if not col_name.startswith("SIZE"):
             avg = np.mean(plot_df2.iloc[:, i])
             if avg != 0:
+                print("\nDATA", plot_df2.iloc[:, i])
                 low, up = compute_CI(
                     plot_df2.iloc[:, i],
                     num_iter=5000,
@@ -1996,6 +1998,7 @@ def plot_err_distrib(models_folder=None,
                     mode=ci_mode,
                 )
                 low, up = abs(avg - low), abs(up - avg)
+                print("\nLOW & UP", low, up)
             else:
                 avg, low, up = 0, 0, 0
             final_plot_df2["Absolute Error"].append(avg)
@@ -2693,142 +2696,511 @@ def run_model_analysis_plots(path_model_folder,
         # Plot SHAP values for previously best predicted interaction
         plot_global_SHAP(path_model_folder, y_class=y_class, ho_name="11457_x_E.ce", filter=exp_filter, save_path=save_path, show=show)
 
-def in_depth_analysis(path_model_folder, 
-                      path_df=None,
-                      separate: bool = False, 
-                      exp_filter: str = '',
-                      shap=False,
-                      save_path: str = None, 
-                      show: bool = False):
-    # path_df is the method dataset df
+# def in_depth_analysis(path_model_folder, 
+#                       path_df=None,
+#                       separate: bool = False, 
+#                       exp_filter: str = '',
+#                       shap=False,
+#                       save_path: str = None, 
+#                       show: bool = False):
+#     # path_df is the method dataset df
+#     if path_df is None:
+#         path_df = "./Data/Datasets/fe_combinatoric_COI.csv"
+
+#     # If stratified in name, if separate => Run for each stratified sub regressor, else run for the overall model
+#     if ('Stratified' in exp_filter) and separate:
+#         os.makedirs(f"Results/reco_exp/submodels_analysis/", exist_ok=True)
+#         from pipeline import evaluate
+#         all_results = {}
+#         for ho_name in all_ho_names[:3]:
+#             pipeline, method_df, _ = load_lgbm_model(path_model_folder=path_model_folder, 
+#                                                      path_df=path_df, 
+#                                                      ho_name=ho_name, 
+#                                                      filter=exp_filter)
+#             print(method_df.head())
+#             target = ["Score"]
+#             remove_cols = [
+#                             "Unnamed: 0",
+#                             "Unnamed: 0.1",
+#                             "B_sample_ID",
+#                             "P_sample_ID",
+#                             "Bacillus",
+#                             "Pathogene",
+#                         ]
+#             for target_class in pipeline[-1].estimators.keys():
+#                 full_name = exp_filter + '_' + target_class
+#                 results = evaluate(
+#                             pipeline,
+#                             full_name + '_',
+#                             {'combinatoric':method_df},
+#                             mode="ho",
+#                             suffix="_hold_outs.pkl",
+#                             ho_folder_path="Data/Datasets/",
+#                             target=target,
+#                             remove_cols=remove_cols,
+#                             save=False,
+#                             y_class=target_class,
+#                             inference=True,
+#                             parallel=True,
+#                             n_jobs_outer=12,
+#                             n_jobs_model=1,
+#                             batch_size=12,
+#                             temp_folder="./temp_results",
+#                         )
+#                 path_results_df = f"Results/reco_exp/impute_bias/ho_{full_name}_results.csv"
+#                 results.to_csv(path_results_df)
+
+#                 if target_class not in all_results.keys():
+#                     all_results[target_class] = [results]
+#                 else:
+#                     all_results[target_class].append(results)
+#         # For each target class, analyze results
+#         for target_class in all_results.keys():
+#             df = pd.concat(all_results[target_class], axis=0)
+#             full_name = exp_filter + '_' + target_class
+#             path_results_df = f"Results/reco_exp/submodels_analysis/ho_{full_name}_results.csv"
+#             df.to_csv(path_results_df)
+#             run_model_analysis_plots(path_model_folder, path_results_df, 
+#                                      exp_filter=exp_filter, shap=shap, y_class=target_class, 
+#                                      save_path=save_path + "_" + target_class, show=show)
+#     else:
+#         path_results_df = f"./Results/reco_exp/impute_bias/ho_{exp_filter}LGBMRegressor_results.csv"
+#         run_model_analysis_plots(path_model_folder, path_results_df, 
+#                                  exp_filter=exp_filter, shap=shap, 
+#                                  save_path=save_path, show=show)
+
+def make_in_depth_paths(path_model_folder,
+                          path_df=None,
+                          exp_filter: str = '',
+                          separate: bool = False):
+    """
+    Returns a list of CSV file paths, each ready-to-plot.
+
+    - If files already exist and force_recompute is False, skip compute.
+    - Otherwise, run evaluate() and save CSVs.
+    """
     if path_df is None:
         path_df = "./Data/Datasets/fe_combinatoric_COI.csv"
 
-    # If stratified in name, if separate => Run for each stratified sub regressor, else run for the overall model
-    if ('Stratified' in exp_filter) and separate:
-        os.makedirs(f"Results/reco_exp/submodels_analysis/", exist_ok=True)
-        from pipeline import evaluate
-        all_results = {}
-        for ho_name in all_ho_names:
-            pipeline, method_df, _ = load_lgbm_model(path_model_folder=path_model_folder, 
-                                                     path_df=path_df, 
-                                                     ho_name=ho_name, 
-                                                     filter=exp_filter)
-            print(method_df.head())
-            target = ["Score"]
-            remove_cols = [
-                            "Unnamed: 0",
-                            "Unnamed: 0.1",
-                            "B_sample_ID",
-                            "P_sample_ID",
-                            "Bacillus",
-                            "Pathogene",
-                        ]
-            for target_class in pipeline[-1].estimators.keys():
-                full_name = exp_filter + '_' + target_class
-                results = evaluate(
-                            pipeline,
-                            full_name + '_',
-                            {'combinatoric':method_df},
-                            mode="ho",
-                            suffix="_hold_outs.pkl",
-                            ho_folder_path="Data/Datasets/",
-                            target=target,
-                            remove_cols=remove_cols,
-                            save=False,
-                            y_class=target_class,
-                            inference=True,
-                            parallel=True,
-                            n_jobs_outer=12,
-                            n_jobs_model=1,
-                            batch_size=12,
-                            temp_folder="./temp_results",
-                        )
-                path_results_df = f"Results/reco_exp/impute_bias/ho_{full_name}_results.csv"
-                results.to_csv(path_results_df)
+    output_paths = []
+    base_folder = "Results/reco_exp"
+    os.makedirs(base_folder, exist_ok=True)
+    all_results = {}
+    if 'Stratified' in exp_filter and separate:
+        sub_out = os.path.join(base_folder, "submodels_analysis")
+        os.makedirs(sub_out, exist_ok=True)
 
-                if target_class not in all_results.keys():
-                    all_results[target_class] = [results]
+        # iterate hold-out names
+        for ho_name in all_ho_names[:3]:
+            for target_class in pl[-1].estimators.keys():
+                fname = f"ho_{exp_filter}_{target_class}_results.csv"
+                out_csv = os.path.join(sub_out, fname)
+
+        # For each target class, analyze results
+        for target_class in all_results.keys():
+            full_name = exp_filter + '_' + target_class
+            path_results_df = f"Results/reco_exp/submodels_analysis/ho_{full_name}_results.csv"
+            output_paths.append((path_results_df,target_class))
+
+    else:
+        path_results_df = f"./Results/reco_exp/impute_bias/ho_{exp_filter}LGBMRegressor_results.csv"
+        output_paths.append(out_csv)
+    return path_model_folder, exp_filter, output_paths
+
+def make_in_depth_data(path_model_folder,
+                          path_df=None,
+                          exp_filter: str = '',
+                          separate: bool = False,
+                          force_recompute=False):
+    """
+    Returns a list of CSV file paths, each ready-to-plot.
+
+    - If files already exist and force_recompute is False, skip compute.
+    - Otherwise, run evaluate() and save CSVs.
+    """
+    if path_df is None:
+        path_df = "./Data/Datasets/fe_combinatoric_COI.csv"
+
+    output_paths = []
+    base_folder = "Results/reco_exp"
+    os.makedirs(base_folder, exist_ok=True)
+    all_results = {}
+    if 'Stratified' in exp_filter and separate:
+        sub_out = os.path.join(base_folder, "submodels_analysis")
+        os.makedirs(sub_out, exist_ok=True)
+
+        # iterate hold-out names
+        for ho_name in all_ho_names[:3]:
+            pl, df0, _ = load_lgbm_model(path_model_folder, path_df, ho_name, filter=exp_filter)
+            target = ["Score"]
+            remove_cols = ["Unnamed: 0", "Unnamed: 0.1", "B_sample_ID", "P_sample_ID", "Bacillus", "Pathogene"]
+
+            for target_class in pl[-1].estimators.keys():
+                fname = f"ho_{exp_filter}_{target_class}_results.csv"
+                out_csv = os.path.join(sub_out, fname)
+
+                recompute = False
+                if os.path.exists(out_csv):
+                    if force_recompute:
+                        recompute = True
                 else:
-                    all_results[target_class].append(results)
+                    recompute = True
+
+                if recompute:
+                    res = evaluate(pl, exp_filter + '_' + target_class + '_',
+                                {'combinatoric': df0}, mode="ho",
+                                suffix="_hold_outs.pkl", ho_folder_path="Data/Datasets/",
+                                target=target, remove_cols=remove_cols,
+                                save=False, y_class=target_class,
+                                inference=True, parallel=True,
+                                n_jobs_outer=12, n_jobs_model=1,
+                                batch_size=12,
+                                temp_folder="./temp_results")
+                    res.to_csv(out_csv, index=False)
+                    if target_class not in all_results.keys():
+                        all_results[target_class] = [res]
+                    else:
+                        all_results[target_class].append(res)
+
         # For each target class, analyze results
         for target_class in all_results.keys():
             df = pd.concat(all_results[target_class], axis=0)
             full_name = exp_filter + '_' + target_class
             path_results_df = f"Results/reco_exp/submodels_analysis/ho_{full_name}_results.csv"
+            output_paths.append((path_results_df,target_class))
             df.to_csv(path_results_df)
-            run_model_analysis_plots(path_model_folder, path_results_df, shap=shap, y_class=target_class, save_path=save_path, show=show)
+
     else:
         path_results_df = f"./Results/reco_exp/impute_bias/ho_{exp_filter}LGBMRegressor_results.csv"
-        run_model_analysis_plots(path_model_folder, path_results_df, exp_filter, shap=shap, save_path=save_path, show=show)
+        output_paths.append(out_csv)
+    return path_model_folder, exp_filter, output_paths
 
-def plot_conformal(model_path_list, ci_mode='bca'):
-    from pipeline import evaluate
-    # For each model, for each fold, run conformal inference
+def plot_in_depth_data(output_paths, path_model_folder, exp_filter, shap=False, save_path=None, show=False):
+    stratified = [f for f in output_paths if isinstance(f, tuple)]
+    normal = [f for f in output_paths if not isinstance(f, tuple)]
+    
+    for path, target_class in stratified:
+        run_model_analysis_plots(path_model_folder, path, exp_filter=exp_filter,
+                                shap=shap, y_class=target_class, 
+                                save_path=save_path + "_" + target_class, show=show)
+    for path in normal:
+        run_model_analysis_plots(path_model_folder, path, exp_filter=exp_filter, 
+                                 shap=shap, save_path=save_path, show=show)
+
+def plot_in_depth_analysis(path_model_folder,
+                          path_df=None,
+                          exp_filter: str = '',
+                          shap=False,
+                          separate: bool = False,
+                          force_recompute: bool = False,
+                          save_path=None,
+                          show=False):
+    
+    path_model_folder, exp_filter, output_paths = make_in_depth_paths(path_model_folder,
+                                                                    path_df=path_df,
+                                                                    exp_filter=exp_filter,
+                                                                    separate=separate)
+    
+    if force_recompute:
+        path_model_folder, exp_filter, output_paths = make_in_depth_data(path_model_folder,
+                                                                        path_df=path_df,
+                                                                        exp_filter=exp_filter,
+                                                                        shap=shap,
+                                                                        separate=separate,
+                                                                        force_recompute=True)
+    else:
+        # Checks the files are already present
+        RECOMPUTE = False
+        for element in output_paths:
+            if isinstance(element, tuple):
+                element = element[0]
+            if not os.path.exists(element):
+                RECOMPUTE = True
+
+        if RECOMPUTE:
+            path_model_folder, exp_filter, output_paths = make_in_depth_data(path_model_folder,
+                                                                            path_df=path_df,
+                                                                            exp_filter=exp_filter,
+                                                                            shap=shap,
+                                                                            separate=separate,
+                                                                            force_recompute=False)
+    plot_in_depth_data(output_paths, path_model_folder, exp_filter, 
+                       shap=shap, save_path=save_path, show=show)
+
+# def plot_conformal(models_list, ci_mode='bca', save_path=None, show=False):
+#     # For each model, for each fold, run conformal inference
+#     os.makedirs(f"./Results/reco_exp/conformal/", exist_ok=True)
+#     widths_df = {"Experiment":[],"Width":[]}
+#     coverage_df = {"Experiment":[], "Coverage":[], "CI95_low":[], "CI95_up":[]}
+#     for path_model_folder, exp_filter in models_list:
+#         avg_results = []
+#         for ho_name in all_ho_names[:3]:
+#             pipeline, method_df, _ = load_lgbm_model(path_model_folder, path_df, ho_name=ho_name, filter=exp_filter)
+#             target = ["Score"]
+#             remove_cols = [
+#                             "Unnamed: 0",
+#                             "Unnamed: 0.1",
+#                             "B_sample_ID",
+#                             "P_sample_ID",
+#                             "Bacillus",
+#                             "Pathogene",
+#                         ]
+#             for target_class in pipeline[-1].estimators.keys():
+
+#                 full_name = exp_filter + '_' + target_class
+#                 results = evaluate(
+#                             pipeline,
+#                             full_name + '_',
+#                             {'combinatoric':method_df},
+#                             mode="ho",
+#                             suffix="_hold_outs.pkl",
+#                             ho_folder_path="Data/Datasets/",
+#                             target=target,
+#                             remove_cols=remove_cols,
+#                             save=False,
+#                             conformal=True,
+#                             inference=True,
+#                             parallel=True,
+#                             n_jobs_outer=12,
+#                             n_jobs_model=1,
+#                             batch_size=12,
+#                             temp_folder="./temp_results",
+#                         )
+#                 path_df = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
+#                 results.to_csv(path_df)
+#                 avg_results.append(results)
+#                 widths_df["Width"] += list(results["Width"])
+#                 widths_df["Experiment"] += [exp_filter] * len(list(results["Width"]))
+#             all_ho_results = pd.concat(avg_results, axis=0)
+#             avg = np.mean(all_ho_results["Coverage"])
+#             low, up = compute_CI(all_ho_results["Coverage"], 
+#                        num_iter=5000, 
+#                        confidence=95, 
+#                        seed=6262, 
+#                        stat_func=stat_func, 
+#                        mode="bca")
+#             low, up = abs(low - avg), abs(up - avg)
+#             coverage_df["Coverage"].append(avg)
+#             coverage_df["CI95_low"].append(low)
+#             coverage_df["CI95_up"].append(up)
+#             coverage_df["Experiment"].append(exp_filter)
+    
+#     widths_df = pd.DataFrame(widths_df)
+#     coverage_df = pd.DataFrame(coverage_df)
+
+#     # With boxplot
+#     sns.boxenplot(widths_df, 
+#                   orient='h', 
+#                   y="Width", x="Experiment", 
+#                   width_method='area', 
+#                   hue="Experiment", palette="inferno")
+#     if save_path is not None:
+#         save_path = save_path[:-4] + "_width.pdf" if save_path.endswith(".pdf") else save_path + "_width.pdf"
+#         plt.savefig(save_path, format="pdf", bbox_inches="tight")
+#     if show:
+#         plt.show()
+
+#     # Coverage barplot
+#     bars = sns.barplot(coverage_df, 
+#                 x="Experiment", y="Coverage", 
+#                 hue="Experiment", palette="flare")
+#     yerr = pd.concat([coverage_df["CI95_low"], coverage_df["CI95_up"]], axis=0)
+#     bars.errorbar(range(len(models_list)), coverage_df["Coverage"],
+#                   yerr=yerr, 
+#                   capsize=4,
+#                   elinewidth=1.5,
+#                   color="black",
+#                 )
+#     bars.tick_params(axis="x", rotation=45)
+#     for patch in bars.patches:
+#         x_center = patch.get_x() + patch.get_width() / 2.0
+#         y_top = patch.get_height()
+#         label = f"{patch.get_height():.3f}"
+#         bars.text(
+#             x_center,
+#             y_top + 0.01,
+#             label,
+#             ha="center",
+#             va="bottom",
+#             color="black",
+#             fontsize=12,
+#             fontweight="bold",
+#         )
+#     plt.title(
+#         f"Comparison of Conformal Prediction Coverage", 
+#         fontsize=14, 
+#         fontweight="bold"
+#     )
+#     if save_path is not None:
+#         save_path = save_path[:-4] + "_coverage" + ".pdf" if save_path.endswith(".pdf") else save_path + "_coverage.pdf"
+#         plt.savefig(save_path, format="pdf", bbox_inches="tight")
+#     if show:
+#         plt.show()
+
+def compute_conformal_results(models_list, path_df, ci_mode='bca'):
     os.makedirs(f"./Results/reco_exp/conformal/", exist_ok=True)
-    widths_df = {"Experiment":[],"Width":[]}
-    coverage_df = {"Experiment":[], "Coverage":[], "CI95_low":[], "CI95_up":[]}
-    # models_list = ...
+    widths_df = {"Experiment": [], "Width": [], "Evaluation":[], "target_class":[]}
+    coverage_df = {"Experiment": [], "Coverage": [], "CI95_low": [], "CI95_up": []}
+
     for path_model_folder, exp_filter in models_list:
         avg_results = []
-        for ho_name in all_ho_names:
+        for ho_name in all_ho_names[:3]:
             pipeline, method_df, _ = load_lgbm_model(path_model_folder, path_df, ho_name=ho_name, filter=exp_filter)
             target = ["Score"]
             remove_cols = [
-                            "Unnamed: 0",
-                            "Unnamed: 0.1",
-                            "B_sample_ID",
-                            "P_sample_ID",
-                            "Bacillus",
-                            "Pathogene",
-                        ]
+                "Unnamed: 0", "Unnamed: 0.1", "B_sample_ID",
+                "P_sample_ID", "Bacillus", "Pathogene",
+            ]
             for target_class in pipeline[-1].estimators.keys():
-
                 full_name = exp_filter + '_' + target_class
                 results = evaluate(
-                            pipeline,
-                            full_name + '_',
-                            {'combinatoric':method_df},
-                            mode="ho",
-                            suffix="_hold_outs.pkl",
-                            ho_folder_path="Data/Datasets/",
-                            target=target,
-                            remove_cols=remove_cols,
-                            save=False,
-                            conformal=True,
-                            inference=True,
-                            parallel=True,
-                            n_jobs_outer=12,
-                            n_jobs_model=1,
-                            batch_size=12,
-                            temp_folder="./temp_results",
-                        )
-                path_df = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
-                results.to_csv(path_df)
+                    pipeline,
+                    full_name + '_',
+                    {'combinatoric': method_df},
+                    mode="ho",
+                    suffix="_hold_outs.pkl",
+                    ho_folder_path="Data/Datasets/",
+                    target=target,
+                    remove_cols=remove_cols,
+                    save=False,
+                    conformal=True,
+                    inference=True,
+                    parallel=True,
+                    n_jobs_outer=12,
+                    n_jobs_model=1,
+                    batch_size=12,
+                    temp_folder="./temp_results",
+                )
+                path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
+                results.to_csv(path_df_out)
                 avg_results.append(results)
-            all_ho_results = pd.concat(avg_results, axis=0)
-            avg = np.mean(all_ho_results["Coverage"])
-            low, up = compute_CI(all_ho_results["Coverage"], 
-                       num_iter=5000, 
-                       confidence=95, 
-                       seed=6262, 
-                       stat_func=stat_func, 
-                       mode="bca")
-            low, up = abs(low - avg), abs(up - avg)
-            coverage_df["CI95_low"].append(low)
-            coverage_df["CI95_up"].append(up)
-    # For each instance, store the interval width and a boolean that is true if the ture score is inside the interval
-    # If ci_mode is not None, compute the CI of the mean interval width, plot it
-    # compute the overall coverage, plot it
-    pass
+                widths_df["Width"] += list(results["Width"])
+                widths_df["Experiment"] += [exp_filter] * len(results)
+                widths_df["Evaluation"] += [ho_name] * len(results)
+                widths_df["target_class"] += [target] * len(results)
 
-def plot_conformal_by_org(model_path, ci_mode='bca'):
-    # for each fold, run conformal inference
-    # For each instance, store the interval width and a boolean that is true if the ture score is inside the interval
-    # If ci_mode is not None, compute the CI of the mean interval width BY ORG, plot it
-    # if ci_mode is None, plot the boxplot of conformal interval widths BY ORG
-    # compute the overall coverage BY ORG, plot it
-    pass
+        all_ho_results = pd.concat(avg_results, axis=0)
+        avg = np.mean(all_ho_results["Coverage"])
+        low, up = compute_CI(all_ho_results["Coverage"],
+                             num_iter=5000,
+                             confidence=95,
+                             seed=6262,
+                             stat_func=stat_func,
+                             mode=ci_mode)
+        coverage_df["Coverage"].append(avg)
+        coverage_df["CI95_low"].append(abs(low - avg))
+        coverage_df["CI95_up"].append(abs(up - avg))
+        coverage_df["Experiment"].append(exp_filter)
+    widths, coverage = pd.DataFrame(widths_df), pd.DataFrame(coverage_df)
+    widths.to_csv("Results/reco_exp/conformal/widths_results.csv")
+    coverage.to_csv("Results/reco_exp/conformal/coverage_results.csv")
+    return widths, coverage
+
+def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
+    # Widths plot
+    sns.boxenplot(widths_df, 
+                  orient='h', 
+                  y="Width", x="Experiment", 
+                  width_method='area', 
+                  hue="Experiment", palette="inferno")
+    if save_path is not None:
+        width_path = save_path[:-4] + "_width.pdf" if save_path.endswith(".pdf") else save_path + "_width.pdf"
+        plt.savefig(width_path, format="pdf", bbox_inches="tight")
+    if show:
+        plt.show()
+    plt.clf()
+
+    # Coverage plot
+    bars = sns.barplot(coverage_df, 
+                       x="Experiment", y="Coverage", 
+                       hue="Experiment", palette="flare")
+    yerr = [coverage_df["CI95_low"].values, coverage_df["CI95_up"].values]
+    bars.errorbar(range(len(coverage_df)), coverage_df["Coverage"],
+                  yerr=yerr, capsize=4, elinewidth=1.5, color="black")
+    bars.tick_params(axis="x", rotation=45)
+
+    for patch in bars.patches:
+        x_center = patch.get_x() + patch.get_width() / 2.0
+        y_top = patch.get_height()
+        bars.text(x_center, y_top + 0.01, f"{y_top:.3f}",
+                  ha="center", va="bottom", color="black",
+                  fontsize=12, fontweight="bold")
+
+    plt.title("Comparison of Conformal Prediction Coverage", fontsize=14, fontweight="bold")
+    if save_path is not None:
+        cov_path = save_path[:-4] + "_coverage.pdf" if save_path.endswith(".pdf") else save_path + "_coverage.pdf"
+        plt.savefig(cov_path, format="pdf", bbox_inches="tight")
+    if show:
+        plt.show()
+
+def plot_widths_by_org(widths_df,
+                       ho_pathogen,
+                       ho_bacillus,
+                       ho_interaction,
+                       save_path=None,
+                       show=False):
+    """
+    Plot conformal prediction interval widths grouped by organism categories.
+
+    Parameters:
+        widths_df (pd.DataFrame): DataFrame with columns ['Experiment', 'Width'].
+        ho_pathogen (list): List of experiment names for pathogen group.
+        ho_bacillus (list): List of experiment names for bacillus group.
+        ho_interaction (list): List of experiment names for interaction group.
+        save_path (str, optional): Base path to save the figure (PDF).
+        show (bool): If True, display the plot.
+    """
+    # Split dataframe into groups
+    P_df = widths_df[widths_df['Experiment'].isin(ho_pathogen)].copy()
+    B_df = widths_df[widths_df['Experiment'].isin(ho_bacillus)].copy()
+    I_df = widths_df[widths_df['Experiment'].isin(ho_interaction)].copy()
+
+    # Setup figure with 3 subplots
+    fig, axes = plt.subplots(3, 1, figsize=(10, 12), sharex=False)
+    groups = [('Pathogen', P_df, axes[0]),
+              ('Bacillus', B_df, axes[1]),
+              ('Interaction', I_df, axes[2])]
+
+    for name, df, ax in groups:
+        sns.boxenplot(
+            data=df,
+            x='Width',
+            y='Experiment',
+            ax=ax,
+            orient='h',
+            width_method='area',
+            palette='inferno'
+        )
+        ax.set_title(f"{name} Interval Widths", fontsize=14, fontweight='bold')
+        ax.tick_params(axis='both', which='major', labelsize=12)
+    
+    plt.tight_layout()
+    # Save
+    if save_path is not None:
+        base, ext = os.path.splitext(save_path)
+        out_path = f"{base}_widths_by_org.pdf"
+        plt.savefig(out_path, format='pdf', bbox_inches='tight')
+    # Show
+    if show:
+        plt.show()
+
+def plot_conformal(models_list, path_df, ci_mode='bca', by_org=False, save_path=None, show=False):
+    width_path = "Results/reco_exp/conformal/widths_results.csv"
+    coverage_path = "Results/reco_exp/conformal/coverage_results.csv"
+    if os.path.exists(width_path) & os.path.exists(coverage_path):
+        width_df = pd.read_csv(width_path)
+        coverage_df = pd.read_csv(coverage_path)
+    else:
+        width_df, coverage_df = compute_conformal_results(models_list, path_df, ci_mode)
+    if by_org:
+        plot_widths_by_org(width_df,
+                       ho_pathogen,
+                       ho_bacillus,
+                       ho_interaction,
+                       save_path=save_path,
+                       show=show)
+    else:
+        plot_conformal_data(width_df, coverage_df, save_path, show)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate analysis plots.")
@@ -2851,7 +3223,8 @@ if __name__ == "__main__":
             "plot_global_DiCE",
             "plot_local_DiCE",
             "plot_impute_bias",
-            "in_depth_analysis"
+            "in_depth_analysis",
+            "conformal"
         ],
         help="Type of plot to generate.",
     )
@@ -3024,28 +3397,42 @@ if __name__ == "__main__":
 
     elif plot_type == "in_depth_analysis":
         # Plot in_depth best normal no impute
-        # print("Making plots for an in-depth analysis for best, normal, no imputation model..")
-        # in_depth_analysis("./Results/reco_exp_models/impute_bias/",
-        #                 separate= False, 
-        #                 exp_filter='NoImpute_Normal',
-        #                 save_path="./Plots/best_normal_no_impute", 
-        #                 shap=True,
-        #                 show=False)
+        print("Making plots for an in-depth analysis for best, normal, no imputation model..")
+        plot_in_depth_analysis("./Results/reco_exp_models/impute_bias/",
+                        separate= False, 
+                        exp_filter='NoImpute_Normal',
+                        save_path="./Plots/best_normal_no_impute", 
+                        shap=True,
+                        show=False)
         
-        # # Plot in_depth best stratified
-        # print("Making plots for an in-depth analysis for best, stratified model..")
-        # in_depth_analysis("./Results/reco_exp_models/impute_bias/", 
-        #                 separate= False, 
-        #                 exp_filter='NoImpute_Custom_Mixed_Stratified',
-        #                 save_path="./Plots/best_stratified", 
-        #                 shap=False,
-        #                 show=False)
+        # Plot in_depth best stratified
+        print("Making plots for an in-depth analysis for best, stratified model..")
+        plot_in_depth_analysis("./Results/reco_exp_models/impute_bias/", 
+                        separate= False, 
+                        exp_filter='NoImpute_Custom_Mixed_Stratified',
+                        save_path="./Plots/best_stratified", 
+                        shap=False,
+                        show=False)
         
         # Plot in_depth best stratified (separated)
         print("Making SEPARATED plots for an in-depth analysis for best, stratified model..")
-        in_depth_analysis("./Results/reco_exp_models/impute_bias/",
+        plot_in_depth_analysis("./Results/reco_exp_models/impute_bias/",
                         separate= True, 
                         exp_filter='NoImpute_Custom_Mixed_Stratified',
                         save_path="./Plots/best_stratified_separated", 
                         shap=False,
                         show=False)
+    elif plot_type == "conformal":
+        path_model_folder = "./Results/reco_exp_models/impute_bias/"
+        path_df = "Data/Datasets/fe_combinatoric_COI.csv"
+        models_list = [("./Results/models/", ''), (path_model_folder, 'NoImpute_Normal')]
+
+        plot_conformal(models_list, path_df, 
+                       save_path="./Plots/normal_conformal", show=False)
+        plot_conformal(models_list, path_df, by_org=True, 
+                       save_path="./Plots/normal_conformal", show=False)
+        
+        plot_conformal([(path_model_folder, 'NoImpute_Custom_Mixed_Stratified')], path_df, 
+                       save_path="./Plots/stratified_conformal", show=False)
+        plot_conformal(models_list, path_df, by_org=True, 
+                       save_path="./Plots/stratified_conformal", show=False)
