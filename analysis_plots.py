@@ -1987,9 +1987,8 @@ def plot_err_distrib(models_folder=None,
     for i in range(1, plot_df2.shape[1]):
         col_name = list(plot_df2.columns)[i]
         if not col_name.startswith("SIZE"):
-            avg = np.mean(plot_df2.iloc[:, i])
+            avg = np.mean([val for val in plot_df2.iloc[:, i] if not np.isnan(val) and np.abs(val) > 1e-5])
             if avg != 0:
-                print("\nDATA", plot_df2.iloc[:, i])
                 low, up = compute_CI(
                     plot_df2.iloc[:, i],
                     num_iter=5000,
@@ -1999,7 +1998,6 @@ def plot_err_distrib(models_folder=None,
                     mode=ci_mode,
                 )
                 low, up = abs(avg - low), abs(up - avg)
-                print("\nLOW & UP", low, up)
             else:
                 avg, low, up = 0, 0, 0
             final_plot_df2["Absolute Error"].append(avg)
@@ -2836,6 +2834,7 @@ def make_in_depth_data(path_model_folder,
         # iterate hold-out names
         for ho_name in all_ho_names[:3]:
             pl, df0, _ = load_lgbm_model(path_model_folder, path_df, ho_name, filter=exp_filter)
+            print(f"LOADED MODEL FOR {ho_name}")
             target = ["Score"]
             remove_cols = ["Unnamed: 0", "Unnamed: 0.1", "B_sample_ID", "P_sample_ID", "Bacillus", "Pathogene"]
 
@@ -2849,8 +2848,9 @@ def make_in_depth_data(path_model_folder,
                         recompute = True
                 else:
                     recompute = True
-
+                print(f"RECOMPUTE = {recompute}")
                 if recompute:
+                    print(f"COMPUTE {ho_name} for {target_class}")
                     res = evaluate(pl, exp_filter + '_' + target_class + '_',
                                 {'combinatoric': df0}, mode="ho",
                                 suffix="_hold_outs.pkl", ho_folder_path="Data/Datasets/",
@@ -2868,6 +2868,7 @@ def make_in_depth_data(path_model_folder,
 
         # For each target class, analyze results
         for target_class in all_results.keys():
+            print(f"COMBINING HO RESULTS FOR {target_class}")
             df = pd.concat(all_results[target_class], axis=0)
             full_name = exp_filter + '_' + target_class
             path_results_df = f"Results/reco_exp/submodels_analysis/ho_{full_name}_results.csv"
@@ -2881,6 +2882,7 @@ def make_in_depth_data(path_model_folder,
 
 def plot_in_depth_data(output_paths, path_model_folder, exp_filter, shap=False, save_path=None, show=False):
     stratified = [f for f in output_paths if isinstance(f, tuple)]
+    print(f"STRATIFIED LIST {stratified}")
     normal = [f for f in output_paths if not isinstance(f, tuple)]
     
     for path, target_class in stratified:
