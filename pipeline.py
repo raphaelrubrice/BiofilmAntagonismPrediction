@@ -340,9 +340,9 @@ def evaluate_hold_out(
         "n_samples": [n_samples],
     }
     if conformal:
-        results["Y_hat_intervals"] = yhat_intervals
-        results["Widths"] = widths
-        results["Coverage"] = coverage
+        results["Y_hat_intervals"] = [yhat_intervals]
+        results["Widths"] = [widths]
+        results["Coverage"] = [coverage]
 
     df = pd.DataFrame(results)
 

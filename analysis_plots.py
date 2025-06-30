@@ -2833,13 +2833,13 @@ def make_in_depth_data(path_model_folder,
         os.makedirs(sub_out, exist_ok=True)
 
         # iterate hold-out names
-        for ho_name in all_ho_names[:3]:
+        for ho_name in all_ho_names:
             pl, df0, _ = load_lgbm_model(path_model_folder, path_df, ho_name, filter=exp_filter)
             print(f"LOADED MODEL FOR {ho_name}")
             target = ["Score"]
             remove_cols = ["Unnamed: 0", "Unnamed: 0.1", "B_sample_ID", "P_sample_ID", "Bacillus", "Pathogene"]
 
-            for target_class in pl[-1].estimators.keys():
+            for target_class in list(pl[-1].estimators.keys())[:1]:
                 fname = f"ho_{exp_filter}_{target_class}_results.csv"
                 out_csv = os.path.join(sub_out, fname)
 
@@ -2870,7 +2870,12 @@ def make_in_depth_data(path_model_folder,
         # For each target class, analyze results
         for target_class in all_results.keys():
             print(f"COMBINING HO RESULTS FOR {target_class}")
-            df = pd.concat(all_results[target_class], axis=0)
+            # df = pd.concat(all_results[target_class], axis=0)
+            df = pd.DataFrame(np.stack([df.to_numpy() for df in all_results[target_class]], axis=2).mean(axis=2),
+                        columns=all_results[target_class][0].columns)
+
+            print("\nTARGET", target_class)
+            print(df)
             full_name = exp_filter + '_' + target_class
             path_results_df = f"Results/reco_exp/submodels_analysis/ho_{full_name}_results.csv"
             output_paths.append((path_results_df,target_class))
@@ -2878,6 +2883,8 @@ def make_in_depth_data(path_model_folder,
 
     else:
         path_results_df = f"./Results/reco_exp/impute_bias/ho_{exp_filter}LGBMRegressor_results.csv"
+        print("\nNOT SEPARATED, STRATIFIED:", "Stratified" in exp_filter)
+        print(pd.read_csv(path_results_df))
         output_paths.append(path_results_df)
     return path_model_folder, exp_filter, output_paths
 
@@ -3056,62 +3063,63 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
                 "Unnamed: 0", "Unnamed: 0.1", "B_sample_ID",
                 "P_sample_ID", "Bacillus", "Pathogene",
             ]
-            if isinstance(pipeline[-1], StratifiedRegressor):
-                for target_class in pipeline[-1].estimators.keys():
-                    full_name = exp_filter + '_' + target_class
-                    results = evaluate(
-                        pipeline,
-                        full_name + '_',
-                        {'combinatoric': method_df},
-                        mode="ho",
-                        suffix="_hold_outs.pkl",
-                        ho_folder_path="Data/Datasets/",
-                        target=target,
-                        remove_cols=remove_cols,
-                        save=False,
-                        conformal=True,
-                        y_class=target_class,
-                        inference=True,
-                        parallel=True,
-                        n_jobs_outer=12,
-                        n_jobs_model=1,
-                        batch_size=12,
-                        temp_folder="./temp_results",
-                    )
-                    path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
-                    results.to_csv(path_df_out)
-                    avg_results.append(results)
-                    widths_df["Width"] += list(results["Width"])
-                    widths_df["Experiment"] += [exp_filter] * len(results)
-                    widths_df["Evaluation"] += [ho_name] * len(results)
-                    widths_df["target_class"] += [target] * len(results)
-            else:
-                full_name = exp_filter
-                results = evaluate(
-                    pipeline,
-                    full_name + '_',
-                    {'combinatoric': method_df},
-                    mode="ho",
-                    suffix="_hold_outs.pkl",
-                    ho_folder_path="Data/Datasets/",
-                    target=target,
-                    remove_cols=remove_cols,
-                    save=False,
-                    conformal=True,
-                    inference=True,
-                    parallel=True,
-                    n_jobs_outer=12,
-                    n_jobs_model=1,
-                    batch_size=12,
-                    temp_folder="./temp_results",
-                )
-                path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
-                results.to_csv(path_df_out)
-                avg_results.append(results)
-                widths_df["Width"] += list(results["Width"])
-                widths_df["Experiment"] += [exp_filter] * len(results)
-                widths_df["Evaluation"] += [ho_name] * len(results)
-                widths_df["target_class"] += [target] * len(results)
+
+            # if isinstance(pipeline[-1], StratifiedRegressor):
+            #     for target_class in pipeline[-1].estimators.keys():
+            #         full_name = exp_filter + '_' + target_class
+            #         results = evaluate(
+            #             pipeline,
+            #             full_name + '_',
+            #             {'combinatoric': method_df},
+            #             mode="ho",
+            #             suffix="_hold_outs.pkl",
+            #             ho_folder_path="Data/Datasets/",
+            #             target=target,
+            #             remove_cols=remove_cols,
+            #             save=False,
+            #             conformal=True,
+            #             y_class=target_class,
+            #             inference=True,
+            #             parallel=True,
+            #             n_jobs_outer=12,
+            #             n_jobs_model=1,
+            #             batch_size=12,
+            #             temp_folder="./temp_results",
+            #         )
+            #         path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
+            #         results.to_csv(path_df_out)
+            #         avg_results.append(results)
+            #         widths_df["Width"] += list(results["Width"])
+            #         widths_df["Experiment"] += [exp_filter] * len(results)
+            #         widths_df["Evaluation"] += [ho_name] * len(results)
+            #         widths_df["target_class"] += [target] * len(results)
+            # else:
+            full_name = exp_filter
+            results = evaluate(
+                pipeline,
+                full_name + '_',
+                {'combinatoric': method_df},
+                mode="ho",
+                suffix="_hold_outs.pkl",
+                ho_folder_path="Data/Datasets/",
+                target=target,
+                remove_cols=remove_cols,
+                save=False,
+                conformal=True,
+                inference=True,
+                parallel=True,
+                n_jobs_outer=12,
+                n_jobs_model=1,
+                batch_size=12,
+                temp_folder="./temp_results",
+            )
+            path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
+            results.to_csv(path_df_out)
+            avg_results.append(results)
+            widths_df["Width"] += list(results["Width"])
+            widths_df["Experiment"] += [exp_filter] * len(results)
+            widths_df["Evaluation"] += [ho_name] * len(results)
+            widths_df["target_class"] += [target] * len(results)
 
         all_ho_results = pd.concat(avg_results, axis=0)
         avg = np.mean(all_ho_results["Coverage"])
