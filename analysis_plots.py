@@ -2856,7 +2856,9 @@ def make_in_depth_data(path_model_folder,
                                 {'combinatoric': df0}, mode="ho",
                                 suffix="_hold_outs.pkl", ho_folder_path="Data/Datasets/",
                                 target=target, remove_cols=remove_cols,
-                                save=False, y_class=target_class,
+                                save=False, 
+                                ho_list=[ho_name], 
+                                y_class=target_class,
                                 inference=True, parallel=True,
                                 n_jobs_outer=12, n_jobs_model=1,
                                 batch_size=12,
@@ -2870,9 +2872,9 @@ def make_in_depth_data(path_model_folder,
         # For each target class, analyze results
         for target_class in all_results.keys():
             print(f"COMBINING HO RESULTS FOR {target_class}")
-            # df = pd.concat(all_results[target_class], axis=0)
-            df = pd.DataFrame(np.stack([df.to_numpy() for df in all_results[target_class]], axis=2).mean(axis=2),
-                        columns=all_results[target_class][0].columns)
+            df = pd.concat(all_results[target_class], axis=0)
+            # df = pd.DataFrame(np.stack([df.to_numpy() for df in all_results[target_class]], axis=2).mean(axis=2),
+            #             columns=all_results[target_class][0].columns)
 
             print("\nTARGET", target_class)
             print(df)

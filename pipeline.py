@@ -341,7 +341,7 @@ def evaluate_hold_out(
     }
     if conformal:
         results["Y_hat_intervals"] = [yhat_intervals]
-        results["Widths"] = [widths]
+        results["Width"] = [widths]
         results["Coverage"] = [coverage]
 
     df = pd.DataFrame(results)
@@ -407,6 +407,7 @@ def evaluate_method_disk_batched(
     feature_selection=False,
     remove_cols=[None],
     shuffle=False,
+    ho_list=None,
     y_class = None,
     conformal: bool = False,
     inference: bool = False,
@@ -432,7 +433,10 @@ def evaluate_method_disk_batched(
     heavy_folds = {"E.ce", "E.co", "S.en", "S.au"}
 
     # Separate heavy and normal folds.
-    all_ho_names = list(ho_sets.keys())
+    if ho_list is None:
+        all_ho_names = list(ho_sets.keys())
+    else:
+        all_ho_names = ho_list
     batch_files = []
 
     # --- Process folds in parallel using disk batching ---
@@ -549,6 +553,7 @@ def evaluate_method(
     feature_selection=False,
     remove_cols=[None],
     shuffle=False,
+    ho_list=None,
     y_class = None,
     conformal: bool = False,
     inference: bool = False,
@@ -557,8 +562,11 @@ def evaluate_method(
     save_path="./Results/models/",
 ):
     feature_selection = "feature_selection" if feature_selection else "classic"
+    if ho_list is None:
+        ho_list = list(ho_sets.keys())
+
     result_list = []
-    for i, ho_name in tqdm(enumerate(ho_sets.keys())):
+    for i, ho_name in tqdm(enumerate(ho_list)):
         ho_df = evaluate_hold_out(
             estimator,
             estimator_name,
@@ -593,6 +601,7 @@ def evaluate(
     target=["Score"],
     remove_cols=[None],
     shuffle=False,
+    ho_list=None,
     y_class = None,
     conformal=False,
     inference: bool = False,
@@ -630,6 +639,7 @@ def evaluate(
                     feature_selection=feature_selection,
                     remove_cols=remove_cols,
                     shuffle=shuffle,
+                    ho_list=ho_list,
                     y_class=y_class,
                     conformal=conformal,
                     inference=inference,
@@ -653,6 +663,7 @@ def evaluate(
                     mode=mode,
                     feature_selection=feature_selection,
                     shuffle=shuffle,
+                    ho_list=ho_list,
                     y_class=y_class,
                     conformal=conformal,
                     inference=inference,
