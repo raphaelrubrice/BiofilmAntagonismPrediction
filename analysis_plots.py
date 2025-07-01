@@ -3118,7 +3118,7 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
             path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
             results.to_csv(path_df_out)
             avg_results.append(results)
-            widths_df["Width"] += list(results["Width"])
+            widths_df["Width"] += results["Width"].to_list()
             widths_df["Experiment"] += [exp_filter] * len(results)
             widths_df["Evaluation"] += [ho_name] * len(results)
             widths_df["target_class"] += [target] * len(results)
@@ -3142,6 +3142,7 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
 
 def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
     # Widths plot
+    print("WIDTH DF", widths_df)
     sns.boxenplot(widths_df, 
                   orient='h', 
                   y="Width", x="Experiment", 
@@ -3159,7 +3160,7 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
                        x="Experiment", y="Coverage", 
                        hue="Experiment", palette="flare")
     yerr = [coverage_df["CI95_low"].values, coverage_df["CI95_up"].values]
-    bars.errorbar(range(len(coverage_df)), coverage_df["Coverage"],
+    bars.errorbar(range(len(coverage_df)), coverage_df["Coverage"], fmt='none',
                   yerr=yerr, capsize=4, elinewidth=1.5, color="black")
     bars.tick_params(axis="x", rotation=45)
 
