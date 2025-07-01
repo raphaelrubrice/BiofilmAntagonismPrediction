@@ -3054,7 +3054,7 @@ def plot_in_depth_analysis(path_model_folder,
 
 def compute_conformal_results(models_list, path_df, ci_mode='bca'):
     os.makedirs(f"./Results/reco_exp/conformal/", exist_ok=True)
-    widths_df = {"Experiment": [], "Width": [], "Evaluation":[], "target_class":[]}
+    widths_df = {"Experiment": [], "Width": [], "Evaluation":[]}
     coverage_df = {"Experiment": [], "Coverage": [], "CI95_low": [], "CI95_up": []}
 
     for path_model_folder, exp_filter in models_list:
@@ -3119,19 +3119,18 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
             path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
             results.to_csv(path_df_out)
             avg_results.append(results)
-            widths_df["Width"] += results["Width"].to_list()
+            widths_df["Width"] += [val for val in results["Width"]]
             widths_df["Experiment"] += [exp_filter] * len(results)
             widths_df["Evaluation"] += [ho_name] * len(results)
-            widths_df["target_class"] += [target] * len(results)
 
         all_ho_results = pd.concat(avg_results, axis=0)
         avg = np.mean(all_ho_results["Coverage"])
         low, up = compute_CI(all_ho_results["Coverage"],
-                             num_iter=5000,
-                             confidence=95,
-                             seed=6262,
-                             stat_func=stat_func,
-                             mode=ci_mode)
+                                num_iter=5000,
+                                confidence=95,
+                                seed=6262,
+                                stat_func=stat_func,
+                                mode=ci_mode)
         coverage_df["Coverage"].append(avg)
         coverage_df["CI95_low"].append(abs(low - avg))
         coverage_df["CI95_up"].append(abs(up - avg))
@@ -3160,7 +3159,7 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
     bars = sns.barplot(coverage_df, 
                        x="Experiment", y="Coverage", 
                        hue="Experiment", palette="flare")
-    yerr = [coverage_df["CI95_low"].values, coverage_df["CI95_up"].values]
+    yerr = np.concatenate([coverage_df["CI95_low"].values, coverage_df["CI95_up"].values], axis=0)
     bars.errorbar(range(len(coverage_df)), coverage_df["Coverage"], fmt='none',
                   yerr=yerr, capsize=4, elinewidth=1.5, color="black")
     bars.tick_params(axis="x", rotation=45)
