@@ -276,7 +276,9 @@ class StratifiedRegressor(LGBMRegressor):
         if return_mask:
             return y_pred, mask
         return y_pred
-      
+    
+    def __sklearn_is_fitted__(self):
+        return self.is_fitted_
     @property
     def booster_(self):
       return BoosterWrapper(self.estimators)

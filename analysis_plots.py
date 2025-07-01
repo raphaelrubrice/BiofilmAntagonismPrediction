@@ -25,6 +25,7 @@ import dice_ml
 from scipy.stats import norm, t
 from statsmodels.graphics.gofplots import qqplot
 from arch.bootstrap import IIDBootstrap
+from sklearn.utils import DataConversionWarning
 
 from datasets import all_possible_hold_outs, get_hold_out_sets, get_train_test_split
 from pipeline import evaluate
@@ -3473,7 +3474,7 @@ if __name__ == "__main__":
         path_df = "Data/Datasets/fe_combinatoric_COI.csv"
         models_list = [("./Results/models/", ''), (path_model_folder, 'NoImpute_Normal'), (path_model_folder, 'NoImpute_Custom_Mixed_Stratified')]
 
-        warnings.filterwarnings('ignore', message='A column-vector y was passed when a 1d array')
+        warnings.filterwarnings('ignore', category=DataConversionWarning)
         plot_conformal(models_list, path_df, 
                        save_path="./Plots/conformal", show=False)
         plot_conformal(models_list, path_df, by_org=True, 
