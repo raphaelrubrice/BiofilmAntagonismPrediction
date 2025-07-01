@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import pickle as pkl
 import os, re, argparse, glob, traceback
+import warnings
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -3471,14 +3472,10 @@ if __name__ == "__main__":
     elif plot_type == "conformal":
         path_model_folder = "./Results/reco_exp_models/impute_bias/"
         path_df = "Data/Datasets/fe_combinatoric_COI.csv"
-        models_list = [("./Results/models/", ''), (path_model_folder, 'NoImpute_Normal')]
+        models_list = [("./Results/models/", ''), (path_model_folder, 'NoImpute_Normal'), (path_model_folder, 'NoImpute_Custom_Mixed_Stratified')]
 
+        warnings.filterwarnings('ignore', message='A column-vector y was passed when a 1d array')
         plot_conformal(models_list, path_df, 
-                       save_path="./Plots/normal_conformal", show=False)
+                       save_path="./Plots/conformal", show=False)
         plot_conformal(models_list, path_df, by_org=True, 
-                       save_path="./Plots/normal_conformal", show=False)
-        
-        plot_conformal([(path_model_folder, 'NoImpute_Custom_Mixed_Stratified')], path_df, 
-                       save_path="./Plots/stratified_conformal", show=False)
-        plot_conformal(models_list, path_df, by_org=True, 
-                       save_path="./Plots/stratified_conformal", show=False)
+                       save_path="./Plots/conformal", show=False)
