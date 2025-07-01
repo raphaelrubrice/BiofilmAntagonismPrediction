@@ -182,7 +182,7 @@ class StratifiedRegressor(LGBMRegressor):
                 return_used_estimators: bool = False):
         strat_masks, y_oracle = self.get_stratification_masks(X, 
                                                               return_y_oracle=return_y_oracle)
-        y_oracle = y_oracle.ravel()
+        y_oracle = y_oracle.ravel() if y_oracle is not None else y_oracle
 
         n_masks = len(strat_masks)
         y_pred = np.zeros((X.shape[0],1))
@@ -200,7 +200,7 @@ class StratifiedRegressor(LGBMRegressor):
             for key, mask in strat_masks.items():
                 y_pred[mask] = self.estimators[key].predict(X[mask])
                 estimator_track[mask] = [key] * np.sum(mask)
-        y_pred = y_pred.ravel()
+        y_pred = y_pred.ravel() if y_pred is not None else y_pred
         # print('\nY_pred', y_pred)
         # print("Estimator track", estimator_track)
         if y_oracle is not None:
@@ -222,7 +222,7 @@ class StratifiedRegressor(LGBMRegressor):
         if y_class == 'oracle':
             strat_masks, y_oracle = self.get_stratification_masks(X, 
                                                               return_y_oracle=True)
-            y_oracle = y_oracle.ravel()
+            y_oracle = y_oracle.ravel() if y_oracle is not None else y_oracle
             mask = y_oracle > -1 # mask full of true
             y_pred = y_oracle
             estimator_track = np.zeros((X.shape[0],1), dtype='<U7')
@@ -230,7 +230,7 @@ class StratifiedRegressor(LGBMRegressor):
         else:
             strat_masks, y_oracle = self.get_stratification_masks(X, 
                                                               return_y_oracle=return_y_oracle)
-            y_oracle = y_oracle.ravel()
+            y_oracle = y_oracle.ravel() if y_oracle is not None else y_oracle
             if y_class in strat_masks.keys():
                 mask = strat_masks[y_class]
                 # print("\nMASK", mask, mask.shape)
@@ -248,7 +248,7 @@ class StratifiedRegressor(LGBMRegressor):
                   return None, None
               return None
 
-        y_pred = y_pred.ravel()
+        y_pred = y_pred.ravel() if y_pred is not None else y_pred
         # Horrible code but that should do it
         if y_oracle is not None:
             if y_class == 'oracle':
