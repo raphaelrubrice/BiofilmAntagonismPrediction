@@ -576,7 +576,7 @@ def evaluate_method_disk_batched(
         for batch_file in batch_files_dico:
             with open(batch_file, 'rb') as f:
                 batch_dico = pkl.load(f)
-            final_dico.append(batch_dico)
+            final_dico_list.append(batch_dico)
             del batch_dico
             gc.collect()
         final_dico = {key:np.concatenate([dico[key].reshape(-1,1) for dico in final_dico_list], axis=0) for key in final_dico_list[0].keys()}
