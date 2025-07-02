@@ -1,5 +1,6 @@
 from numpy.ma.core import masked_less
 import pandas as pd
+from pandas.api.types import is_object_dtype
 import numpy as np
 import pickle as pkl
 import json, os, gc, subprocess, sys, time
@@ -298,8 +299,14 @@ def evaluate_hold_out(
                                                                             test_size=0.2, 
                                                                             shuffle=True, 
                                                                             random_state=random_state)
-        X_train = estimator[:-1].transform(X_train)
+        X_train = estimator[:-1].fit_transform(X_train)
         X_conformalize = estimator[:-1].transform(X_conformalize)
+        # under the hood, requires either int, float or bool
+        # SO we need to change for the Modele column
+        for col in X_conformalize.columns:
+            if is_object_dtype(X_conformalize[col]):
+                X_conformalize[col] = X_conformalize[col].astype(int)
+
         estimator = SplitConformalRegressor(
             estimator=estimator[-1], confidence_level=0.95, conformity_score="residual_normalized")
 
