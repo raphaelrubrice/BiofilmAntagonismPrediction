@@ -463,7 +463,7 @@ def evaluate_method_disk_batched(
     else:
         all_ho_names = ho_list
     batch_files = []
-
+    batch_files_dico = []
     # --- Process folds in parallel using disk batching ---
     if all_ho_names:
         total_normal = len(all_ho_names)
@@ -537,7 +537,12 @@ def evaluate_method_disk_batched(
                     result_list.append(ho_df)
 
             if result_list:
-                batch_df = pd.concat(result_list, axis=0)
+                if isinstance(result_list[0], tuple):
+                    batch_df = pd.concat([res[0] for res in result_list], axis=0)
+                    batch_dico = {key:np.concatenate([res[1][key].reshape(-1,1) for res in result_list], axis=0) for key in result_list[1].keys()}
+                else:
+                    batch_df = pd.concat(result_list, axis=0)
+                    batch_dico = None
                 batch_file = os.path.join(
                     temp_folder,
                     f"batch_{batch_idx:03d}_{method_name}_{estimator_name}.csv",
@@ -545,7 +550,15 @@ def evaluate_method_disk_batched(
                 batch_df.to_csv(batch_file)
                 batch_files.append(batch_file)
 
-                del result_list, batch_df
+                batch_file = os.path.join(
+                    temp_folder,
+                    f"batch_{batch_idx:03d}_{method_name}_{estimator_name}.pkl",
+                )
+                with open(batch_file, 'wb') as f:
+                    pkl.dump(batch_dico, f)
+                batch_files_dico.append(batch_file)
+
+                del result_list, batch_df, batch_dico
                 gc.collect()
 
     # --- Combine all batch files ---
@@ -558,12 +571,23 @@ def evaluate_method_disk_batched(
         gc.collect()
     result_df = pd.concat(final_dfs, axis=0)
 
+    if batch_files_dico != []:
+        final_dico_list = []
+        for batch_file in batch_files_dico:
+            with open(batch_file, 'rb') as f:
+                batch_dico = pkl.load(f)
+            final_dico.append(batch_dico)
+            del batch_dico
+            gc.collect()
+        final_dico = {key:np.concatenate([dico[key].reshape(-1,1) for dico in final_dico_list], axis=0) for key in final_dico_list[0].keys()}
+
     # Optionally clean up temporary files.
     if os.environ.get("KEEP_TEMP_FILES", "0") != "1":
         for file in batch_files:
             if os.path.exists(file):
                 os.remove(file)
-
+    if batch_files_dico != []:
+        return result_df, final_dico
     return result_df
 
 
@@ -591,6 +615,7 @@ def evaluate_method(
         ho_list = list(ho_sets.keys())
 
     result_list = []
+    dico_list = []
     for i, ho_name in tqdm(enumerate(ho_list)):
         ho_df = evaluate_hold_out(
             estimator,
@@ -610,8 +635,17 @@ def evaluate_method(
             save=save,
             save_path=save_path,
         )
+        if isinstance(ho_df, tuple):
+            ho_dico = ho_df[1]
+            ho_df = ho_df[0]
+            dico_list.append(ho_dico)
+        else:
+            pass
         result_list.append(ho_df)
     result_df = pd.concat(result_list, axis=0)
+    if dico_list != []:
+        final_dico = {key:np.concatenate([ho_dico[key].reshape(1,-1) for ho_dico in dico_list]) for key in dico_list[0].keys()}
+        return result_df, final_dico
     return result_df
 
 
@@ -640,6 +674,7 @@ def evaluate(
     temp_folder="./temp_results",
 ):
     results = []
+    dico_list = []
     for method_name in tqdm(["avg", "random", "combinatoric"]):
         if method_name in dataset_dict.keys():
             if "B_sample_ID" not in remove_cols and method_name == "combinatoric":
@@ -696,10 +731,17 @@ def evaluate(
                     save=save,
                     save_path=save_path,
                 )
+            if isinstance(results_df, tuple):
+                dico_res = results_df[1]
+                results_df = results_df[0]
+                dico_list.append(dico_res)
             results.append(results_df)
         else:
             warn_message = f"{method_name} not found in dataset_dict with keys {dataset_dict.keys()}. Skipping this method"
             warnings.warn(warn_message)
+    if dico_list != []:
+        final_dico = {key:np.concatenate([dico[key] for dico in dico_list]) for key in dico_list[0].keys()}
+        return pd.concat(results, axis=0), final_dico
     return pd.concat(results, axis=0)
 
 
