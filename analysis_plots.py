@@ -3,6 +3,7 @@ import numpy as np
 import pickle as pkl
 import os, re, argparse, glob, traceback
 import warnings
+import ast
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -3117,9 +3118,13 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
                 batch_size=12,
                 temp_folder="./temp_results",
             )
+            print("\nBEFORE VALUES", [val for val in results["Width"].iloc[0]])
+            # Convert from string to real object (e.g. list or array)
+            df["Width"] = df["Width"].apply(ast.literal_eval)
+            print("\nAFTER VALUES", [val for val in results["Width"].iloc[0]])
+
             path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
             avg_results.append(results)
-            print("\nVALUES", [val for val in results["Width"].iloc[0]])
             widths_df["Width"] += [val for val in results["Width"].iloc[0]]
             widths_df["Experiment"] += [exp_filter] * len(results)
             widths_df["Evaluation"] += [ho_name] * len(results)
