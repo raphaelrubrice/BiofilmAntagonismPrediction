@@ -3120,7 +3120,9 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
             path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
             results.to_csv(path_df_out)
             avg_results.append(results)
-            widths_df["Width"] += [val for val in results["Width"]]
+            print("\nVALUES", [val for val in results["Width"].values])
+            widths_df["Width"] += [val for val in results["Width"].values]
+            print(widths_df["Width"])
             widths_df["Experiment"] += [exp_filter] * len(results)
             widths_df["Evaluation"] += [ho_name] * len(results)
 
@@ -3135,6 +3137,8 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
         coverage_df["Coverage"].append(avg)
         coverage_df["CI95_low"].append(abs(low - avg))
         coverage_df["CI95_up"].append(abs(up - avg))
+        if exp_filter == '':
+            exp_filter = 'Impute_Normal'
         coverage_df["Experiment"].append(exp_filter)
     widths, coverage = pd.DataFrame(widths_df), pd.DataFrame(coverage_df)
     widths.to_csv("Results/reco_exp/conformal/widths_results.csv")
@@ -3160,7 +3164,7 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
     bars = sns.barplot(coverage_df, 
                        x="Experiment", y="Coverage", 
                        hue="Experiment", palette="flare")
-    yerr = np.concatenate([coverage_df["CI95_low"].values, coverage_df["CI95_up"].values], axis=0)
+    yerr = np.concatenate([coverage_df["CI95_low"].values.reshape(1,-1), coverage_df["CI95_up"].values.reshape(1,-1)], axis=0)
     bars.errorbar(range(len(coverage_df)), coverage_df["Coverage"], fmt='none',
                   yerr=yerr, capsize=4, elinewidth=1.5, color="black")
     bars.tick_params(axis="x", rotation=45)
@@ -3168,9 +3172,9 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
     for patch in bars.patches:
         x_center = patch.get_x() + patch.get_width() / 2.0
         y_top = patch.get_height()
-        bars.text(x_center, y_top + 0.01, f"{y_top:.3f}",
+        bars.text(x_center, y_top + 0.015, f"{y_top:.3f}",
                   ha="center", va="bottom", color="black",
-                  fontsize=12, fontweight="bold")
+                  fontsize=10, fontweight="bold")
 
     plt.title("Comparison of Conformal Prediction Coverage", fontsize=14, fontweight="bold")
     if save_path is not None:
