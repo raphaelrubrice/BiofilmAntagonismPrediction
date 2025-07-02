@@ -190,6 +190,7 @@ def predict_in_chunks(estimator, X, chunk_size=2048, y_class: str = None, confor
     masks = None
     if conformal:
         intervals = []
+            
     for start in range(0, X.shape[0], chunk_size):
         chunk = X.iloc[start : start + chunk_size]
 
@@ -306,6 +307,13 @@ def evaluate_hold_out(
         for col in X_conformalize.columns:
             if is_object_dtype(X_conformalize[col]):
                 X_conformalize[col] = X_conformalize[col].astype(int)
+        
+        X_test = estimator[:-1].transform(X_test)
+        # under the hood, requires either int, float or bool
+        # SO we need to change for the Modele column
+        for col in X_test.columns:
+            if is_object_dtype(X_test[col]):
+                X_test[col] = X_test[col].astype(int)
 
         estimator = SplitConformalRegressor(
             estimator=estimator[-1], confidence_level=0.95, conformity_score="residual_normalized")
@@ -349,8 +357,10 @@ def evaluate_hold_out(
         "n_samples": [n_samples],
     }
     if conformal:
-        results["Y_hat_intervals"] = [yhat_intervals.reshape(1,-1)]
-        results["Width"] = [widths.reshape(1,-1)]
+        other_outputs = {"Y_hat_intervals":yhat_intervals,
+                         "Width":widths}
+        # results["Y_hat_intervals"] = [yhat_intervals.reshape(1,-1)]
+        # results["Width"] = [widths.reshape(1,-1)]
         results["Coverage"] = [coverage]
 
     df = pd.DataFrame(results)
@@ -367,6 +377,8 @@ def evaluate_hold_out(
             estimator[-1].booster_.save_model(model_save_path)
             with open(model_save_path[:-4] + "_pipeline.pkl", "wb") as f:
                 pkl.dump(estimator, f)
+        if conformal:
+            return df, other_outputs
         return df
     else:
         df["Permutation"] = ["No Permutation"]

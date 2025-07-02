@@ -3110,7 +3110,7 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
             #         widths_df["target_class"] += [target] * len(results)
             # else:
             full_name = exp_filter
-            results = evaluate(
+            results, other_outputs = evaluate(
                 pipeline,
                 full_name + '_',
                 {'combinatoric': method_df},
@@ -3128,17 +3128,9 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
                 batch_size=12,
                 temp_folder="./temp_results",
             )
-            print("\nWIDTH", results["Width"])
-            print("\nBEFORE VALUES", [val for val in results["Width"].iloc[0]])
-            # Strp away the outer list brackets
-            results["Width"].iloc[0] = results["Width"].iloc[0][1:-1]
-            # Convert from string to real object, should be a list 
-            results["Width"] = results["Width"].apply(parse_numpy_string)
-            print("\nAFTER VALUES", [val for val in results["Width"].iloc[0]])
-
             path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
             avg_results.append(results)
-            widths_df["Width"] += [val for val in results["Width"].iloc[0]]
+            widths_df["Width"] += other_outputs["Width"].to_list()
             widths_df["Experiment"] += [exp_filter] * len(results)
             widths_df["Evaluation"] += [ho_name] * len(results)
             results.to_csv(path_df_out)
