@@ -539,7 +539,7 @@ def evaluate_method_disk_batched(
             if result_list:
                 if isinstance(result_list[0], tuple):
                     batch_df = pd.concat([res[0] for res in result_list], axis=0)
-                    batch_dico = {key:np.concatenate([res[1][key].reshape(-1,1) for res in result_list], axis=0) for key in result_list[1].keys()}
+                    batch_dico = {key:np.concatenate([res[1][key].reshape(-1,1) for res in result_list], axis=0) for key in result_list[0][1].keys()}
                 else:
                     batch_df = pd.concat(result_list, axis=0)
                     batch_dico = None
