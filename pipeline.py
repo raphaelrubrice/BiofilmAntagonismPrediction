@@ -54,6 +54,7 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 from mapie.regression import SplitConformalRegressor
+from mapie.conformity_scores import ResidualNormalisedScore
 
 from joblib import Memory, Parallel, delayed
 
@@ -315,8 +316,10 @@ def evaluate_hold_out(
             if is_object_dtype(X_test[col]):
                 X_test[col] = X_test[col].astype(int)
 
+        # To handle NaNs if necessary and for overall consistency
+        conf_score = ResidualNormalisedScore(LGBMRegressor())
         estimator = SplitConformalRegressor(
-            estimator=estimator[-1], confidence_level=0.95, conformity_score="residual_normalized")
+            estimator=estimator[-1], confidence_level=0.95, conformity_score=conf_score)
 
     if not inference:
         estimator.fit(X_train, np.ravel(y_train))
