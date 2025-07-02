@@ -345,7 +345,12 @@ def evaluate_hold_out(
         results["Coverage"] = [coverage]
 
     df = pd.DataFrame(results)
-
+    # Force object dtype to avoid conversion to strings
+    for col in ["Y_hat_intervals", "Width"]:
+        if col in df.columns:
+            print("\nBEFORE VALUES", [val for val in df[col].values[0]])
+            df[col] = df[col].astype(object)
+            print("\nAFTER VALUES", [val for val in df[col].values[0]])
     if mode != "feature_selection":
         if save:
             model_save_path = os.path.join(
