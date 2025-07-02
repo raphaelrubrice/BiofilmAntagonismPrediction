@@ -3118,13 +3118,12 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
                 temp_folder="./temp_results",
             )
             path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
-            results.to_csv(path_df_out)
             avg_results.append(results)
-            print("\nVALUES", [val for val in results["Width"].values[0]])
-            widths_df["Width"] += [val for val in results["Width"].values[0]]
-            print(widths_df["Width"])
+            print("\nVALUES", [val for val in results["Width"].iloc[0]])
+            widths_df["Width"] += [val for val in results["Width"].iloc[0]]
             widths_df["Experiment"] += [exp_filter] * len(results)
             widths_df["Evaluation"] += [ho_name] * len(results)
+            results.to_csv(path_df_out)
 
         all_ho_results = pd.concat(avg_results, axis=0)
         avg = np.mean(all_ho_results["Coverage"])
