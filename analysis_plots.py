@@ -3118,9 +3118,12 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
                 batch_size=12,
                 temp_folder="./temp_results",
             )
+            print("\nWIDTH", results["Width"])
             print("\nBEFORE VALUES", [val for val in results["Width"].iloc[0]])
-            # Convert from string to real object (e.g. list or array)
-            df["Width"] = df["Width"].apply(ast.literal_eval)
+            # Strp away the outer list brackets
+            results["Width"].iloc[0] = results["Width"].iloc[0][1:-1]
+            # Convert from string to real object, should be a list 
+            results["Width"] = results["Width"].apply(ast.literal_eval)
             print("\nAFTER VALUES", [val for val in results["Width"].iloc[0]])
 
             path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
