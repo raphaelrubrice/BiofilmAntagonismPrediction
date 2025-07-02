@@ -301,7 +301,7 @@ def evaluate_hold_out(
         X_train = estimator[:-1].transform(X_train)
         X_conformalize = estimator[:-1].transform(X_conformalize)
         estimator = SplitConformalRegressor(
-            estimator=estimator[:-1], confidence_level=0.95, conformity_score="residual_normalized")
+            estimator=estimator[-1], confidence_level=0.95, conformity_score="residual_normalized")
 
     if not inference:
         estimator.fit(X_train, np.ravel(y_train))
