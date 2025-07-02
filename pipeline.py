@@ -317,7 +317,7 @@ def evaluate_hold_out(
                 X_test[col] = X_test[col].astype(int)
 
         # To handle NaNs if necessary and for overall consistency
-        conf_score = ResidualNormalisedScore(LGBMRegressor())
+        conf_score = ResidualNormalisedScore(LGBMRegressor(n_jobs=1))
         estimator = SplitConformalRegressor(
             estimator=estimator[-1], confidence_level=0.95, conformity_score=conf_score)
 
