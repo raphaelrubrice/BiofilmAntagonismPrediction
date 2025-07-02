@@ -295,7 +295,7 @@ def evaluate_hold_out(
     
     if conformal:
         estimator = SplitConformalRegressor(
-            estimator=estimator, confidence_level=0.95)
+            estimator=estimator, confidence_level=0.95, conformity_score="residual_normalized")
         X_train, X_conformalize, y_train, y_conformalize = train_test_split(X_train, y_train, 
                                                                             test_size=0.2, 
                                                                             shuffle=True, 

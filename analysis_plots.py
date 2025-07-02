@@ -3054,6 +3054,16 @@ def plot_in_depth_analysis(path_model_folder,
 #     if show:
 #         plt.show()
 
+def parse_numpy_string(s):
+    # Remove brackets if present
+    s = s.strip().lstrip("[").rstrip("]")
+    # Remove ellipsis if present (not usable data)
+    if "..." in s:
+        raise ValueError("Truncated array string with ellipsis can't be parsed directly.")
+    # Split into numbers
+    parts = s.split()
+    return np.array([float(x) for x in parts])
+
 def compute_conformal_results(models_list, path_df, ci_mode='bca'):
     os.makedirs(f"./Results/reco_exp/conformal/", exist_ok=True)
     widths_df = {"Experiment": [], "Width": [], "Evaluation":[]}
@@ -3123,7 +3133,7 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
             # Strp away the outer list brackets
             results["Width"].iloc[0] = results["Width"].iloc[0][1:-1]
             # Convert from string to real object, should be a list 
-            results["Width"] = results["Width"].apply(ast.literal_eval)
+            results["Width"] = results["Width"].apply(parse_numpy_string)
             print("\nAFTER VALUES", [val for val in results["Width"].iloc[0]])
 
             path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
