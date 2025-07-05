@@ -3307,14 +3307,51 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
             "CI95_up": abs(up - mean_w)
         })
     
-    widths_summary = pd.DataFrame(summary_rows)
+    # 1) Detailed per‐evaluation summary
+    detailed_widths_df = pd.DataFrame(summary_rows)
+
+    # 2) Now summarize across EVALUATION for each EXPERIMENT
+    summary_rows2 = []
+    for exp, grp in detailed_widths_df.groupby("Experiment"):
+        # mean of the per‐evaluation means
+        mean_w = grp["Width"].mean()
+        # CI computed on those evaluation‐means
+        low, up = compute_CI(
+            grp["Width"],
+            num_iter=5000,
+            confidence=95,
+            seed=6262,
+            stat_func=stat_func,
+            mode=ci_mode
+        )
+        summary_rows2.append({
+            "Experiment": exp,
+            "Width": mean_w,
+            "CI95_low": abs(low - mean_w),
+            "CI95_up": abs(up - mean_w)
+        })
+
+    summary_widths_df = pd.DataFrame(summary_rows2)
+
+    # 3) Coverage summary (unchanged)
     coverage_summary = pd.DataFrame(coverage_df)
 
-    # Save out
-    widths_summary.to_csv("Results/reco_exp/conformal/widths_results.csv", index=False)
-    coverage_summary.to_csv("Results/reco_exp/conformal/coverage_results.csv", index=False)
+    # 4) Save out both width‐tables and coverage
+    detailed_widths_df.to_csv(
+        "Results/reco_exp/conformal/detailed_widths_results.csv",
+        index=False
+    )
+    summary_widths_df.to_csv(
+        "Results/reco_exp/conformal/summary_widths_results.csv",
+        index=False
+    )
+    coverage_summary.to_csv(
+        "Results/reco_exp/conformal/coverage_results.csv",
+        index=False
+    )
 
-    return widths_summary, coverage_summary
+    # 5) Return all three
+    return detailed_widths_df, summary_widths_df, coverage_summary
 
 def stratified_sampling(df, cols, n):
     n = int(n)
@@ -3525,22 +3562,24 @@ def plot_widths_by_org(widths_df,
         plt.show()
 
 def plot_conformal(models_list, path_df, ci_mode='bca', by_org=False, save_path=None, show=False):
-    width_path = "Results/reco_exp/conformal/widths_results.csv"
+    detailed_width_path = "Results/reco_exp/conformal/detailed_widths_results.csv"
+    summary_width_path = "Results/reco_exp/conformal/summary_widths_results.csv"
     coverage_path = "Results/reco_exp/conformal/coverage_results.csv"
-    if os.path.exists(width_path) & os.path.exists(coverage_path):
-        width_df = pd.read_csv(width_path)
+    if os.path.exists(summary_width_path) & os.path.exists(detailed_width_path) & os.path.exists(coverage_path):
+        summary_width_df = pd.read_csv(summary_width_path)
+        detailed_width_path = pd.read_csv(detailed_width_path)
         coverage_df = pd.read_csv(coverage_path)
     else:
-        width_df, coverage_df = compute_conformal_results(models_list, path_df, ci_mode)
+        detailed_width_df, summary_width_df, coverage_df = compute_conformal_results(models_list, path_df, ci_mode)
     if by_org:
-        plot_widths_by_org(width_df,
+        plot_widths_by_org(detailed_width_df,
                        ho_pathogen,
                        ho_bacillus,
                        ho_interaction,
                        save_path=save_path,
                        show=show)
     else:
-        plot_conformal_data(width_df, coverage_df, save_path, show)
+        plot_conformal_data(summary_width_df, coverage_df, save_path, show)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate analysis plots.")
