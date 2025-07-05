@@ -3235,7 +3235,7 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
                 path_model_folder, path_df,
                 ho_name=ho_name, filter=exp_filter
             )
-            full_name = exp_filter or 'Impute_Normal'
+            full_name = exp_filter if exp_filter != '' else 'Impute_Normal'
             results, other_outputs = evaluate(
                 pipeline,
                 full_name + '_',
@@ -3263,7 +3263,7 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
             width_list = other_outputs["Width"].reshape(1,-1).tolist()[0]
             print(len(width_list))
             widths_df["Width"] += width_list
-            widths_df["Experiment"] += [exp_filter] * len(width_list)
+            widths_df["Experiment"] += [full_name] * len(width_list)
             widths_df["Evaluation"] += [ho_name] * len(width_list)
             results.to_csv(path_df_out)
         # coverage summary (unchanged)
@@ -3383,7 +3383,7 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
         data=widths_df,
         x="Experiment",
         y="Width",
-        hue="Evaluation",
+        hue="Experiment",
         palette="flare",
         edgecolor="black"
     )
