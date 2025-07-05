@@ -1,5 +1,5 @@
 from numpy.ma.core import masked_less
-import pandas as pd
+import fireducks.pandas as pd
 from pandas.api.types import is_object_dtype
 import numpy as np
 import pickle as pkl

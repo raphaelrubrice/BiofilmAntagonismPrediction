@@ -1,4 +1,4 @@
-import pandas as pd
+import fireducks.pandas as pd
 import os
 import argparse
 

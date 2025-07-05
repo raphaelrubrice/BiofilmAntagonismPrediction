@@ -1,7 +1,7 @@
 import os
 import json
 import numpy as np
-import pandas as pd
+import fireducks.pandas as pd
 
 
 def is_gpu_available():
