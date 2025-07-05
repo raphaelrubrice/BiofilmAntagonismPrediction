@@ -3378,7 +3378,7 @@ def stratified_sampling(df, cols, n):
 def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
     # --- Widths bar plot (mean + CI95) ---
     # widths_df must have: Experiment, Evaluation, Width, CI95_low, CI95_up
-    plt.figure(figsize=(10,6))
+    plt.figure(figsize=(10,10))
     bars_w = sns.barplot(
         data=widths_df,
         x="Experiment",
@@ -3404,9 +3404,9 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
     )
 
     # add labels above each bar
-    for patch, val in zip(bars_w.patches, widths_df["Width"]):
+    for patch in bars_w.patches:
         x_center = patch.get_x() + patch.get_width() / 2.0
-        y_top = val
+        y_top = patch.get_height()
         bars_w.text(
             x_center, y_top + 0.01,
             f"{y_top:.3f}",
@@ -3428,7 +3428,7 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
     plt.clf()
 
     # --- Coverage bar plot (unchanged) ---
-    plt.figure(figsize=(10,6))
+    plt.figure(figsize=(10,10))
     bars_c = sns.barplot(
         data=coverage_df,
         x="Experiment",
@@ -3491,12 +3491,12 @@ def plot_widths_by_org(widths_df,
         show (bool): If True, display the plot.
     """
     # Split dataframe into groups
-    P_df = widths_df[widths_df['Experiment'].isin(ho_pathogen)].copy()
-    B_df = widths_df[widths_df['Experiment'].isin(ho_bacillus)].copy()
-    I_df = widths_df[widths_df['Experiment'].isin(ho_interaction)].copy()
+    P_df = widths_df[widths_df['Evaluation'].isin(ho_pathogen)].copy()
+    B_df = widths_df[widths_df['Evaluation'].isin(ho_bacillus)].copy()
+    I_df = widths_df[widths_df['Evaluation'].isin(ho_interaction)].copy()
 
     # Setup figure with 3 subplots
-    fig, axes = plt.subplots(3, 1, figsize=(10, 12), sharex=False)
+    fig, axes = plt.subplots(3, 1, figsize=(10, 15), sharex=False)
     groups = [('Pathogen', P_df, axes[0]),
               ('Bacillus', B_df, axes[1]),
               ('Interaction', I_df, axes[2])]
@@ -3507,6 +3507,7 @@ def plot_widths_by_org(widths_df,
             x='Width',
             y='Experiment',
             ax=ax,
+            hue='Evaluation',
             orient='h',
             palette='inferno'
         )
