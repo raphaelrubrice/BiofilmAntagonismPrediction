@@ -3132,62 +3132,110 @@ def parse_numpy_string(s):
     parts = s.split()
     return np.array([float(x) for x in parts])
 
+# def compute_conformal_results(models_list, path_df, ci_mode='bca'):
+#     warnings.filterwarnings('ignore', category=RuntimeWarning)
+#     warnings.filterwarnings('ignore', category=UserWarning)
+#     warnings.filterwarnings('ignore', category=DataConversionWarning)
+#     os.makedirs(f"./Results/reco_exp/conformal/", exist_ok=True)
+#     widths_df = {"Experiment": [], "Width": [], "Evaluation":[]}
+#     coverage_df = {"Experiment": [], "Coverage": [], "CI95_low": [], "CI95_up": []}
+
+#     for path_model_folder, exp_filter in models_list:
+#         avg_results = []
+#         for ho_name in all_ho_names[:3]:
+#             print(path_model_folder)
+#             print(path_df)
+#             print(ho_name)
+#             print(exp_filter)
+#             pipeline, method_df, _ = load_lgbm_model(path_model_folder, path_df, ho_name=ho_name, filter=exp_filter)
+#             target = ["Score"]
+#             remove_cols = [
+#                 "Unnamed: 0", "Unnamed: 0.1", "B_sample_ID",
+#                 "P_sample_ID", "Bacillus", "Pathogene",
+#             ]
+
+#             # else:
+#             if exp_filter == '':
+#                 full_name = 'Impute_Normal'
+#             else:
+#                 full_name = exp_filter
+#             results, other_outputs = evaluate(
+#                 pipeline,
+#                 full_name + '_',
+#                 {'combinatoric': method_df},
+#                 mode="ho",
+#                 suffix="_hold_outs.pkl",
+#                 ho_folder_path="Data/Datasets/",
+#                 target=target,
+#                 remove_cols=remove_cols,
+#                 save=False,
+#                 conformal=True,
+#                 inference=True,
+#                 parallel=True,
+#                 n_jobs_outer=12,
+#                 n_jobs_model=1,
+#                 batch_size=12,
+#                 temp_folder="./temp_results",
+#             )
+#             path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
+#             avg_results.append(results)
+#             width_list = other_outputs["Width"].reshape(1,-1).tolist()[0]
+#             print(len(width_list))
+#             widths_df["Width"] += width_list
+#             widths_df["Experiment"] += [exp_filter] * len(width_list)
+#             widths_df["Evaluation"] += [ho_name] * len(width_list)
+#             results.to_csv(path_df_out)
+
+#         all_ho_results = pd.concat(avg_results, axis=0)
+#         print("COEVRAGE COL", all_ho_results["Coverage"])
+#         avg = all_ho_results["Coverage"].mean()
+#         low, up = compute_CI(all_ho_results["Coverage"],
+#                                 num_iter=5000,
+#                                 confidence=95,
+#                                 seed=6262,
+#                                 stat_func=stat_func,
+#                                 mode=ci_mode)
+#         coverage_df["Coverage"].append(avg)
+#         coverage_df["CI95_low"].append(abs(low - avg))
+#         coverage_df["CI95_up"].append(abs(up - avg))
+#         if exp_filter == '':
+#             exp_filter = 'Impute_Normal'
+#         coverage_df["Experiment"].append(exp_filter)
+#     # print("WIDTH LEN", widths_df["Width"][:10], len(widths_df["Width"]))
+#     widths, coverage = pd.DataFrame(widths_df), pd.DataFrame(coverage_df)
+#     # print("WIDTH DF", widths.head(), widths.shape)
+#     print("Width dataframe is huge, downsampling before saving..")
+#     widths = stratified_sampling(widths, ['Experiment', 'Evaluation'], 2000)
+#     print("Downsampled.")
+#     widths.to_csv("Results/reco_exp/conformal/widths_results.csv")
+#     coverage.to_csv("Results/reco_exp/conformal/coverage_results.csv")
+#     return widths, coverage
+
 def compute_conformal_results(models_list, path_df, ci_mode='bca'):
     warnings.filterwarnings('ignore', category=RuntimeWarning)
     warnings.filterwarnings('ignore', category=UserWarning)
     warnings.filterwarnings('ignore', category=DataConversionWarning)
     os.makedirs(f"./Results/reco_exp/conformal/", exist_ok=True)
-    widths_df = {"Experiment": [], "Width": [], "Evaluation":[]}
-    coverage_df = {"Experiment": [], "Coverage": [], "CI95_low": [], "CI95_up": []}
+    
+    # We'll accumulate widths in a flat list, then summarize by group
+    widths_df = {"Experiment": [], 
+                 "Width": [], 
+                 "Evaluation":[]}
+    coverage_df = {
+        "Experiment": [],
+        "Coverage": [],
+        "CI95_low": [],
+        "CI95_up": []
+    }
 
     for path_model_folder, exp_filter in models_list:
         avg_results = []
         for ho_name in all_ho_names[:3]:
-            print(path_model_folder)
-            print(path_df)
-            print(ho_name)
-            print(exp_filter)
-            pipeline, method_df, _ = load_lgbm_model(path_model_folder, path_df, ho_name=ho_name, filter=exp_filter)
-            target = ["Score"]
-            remove_cols = [
-                "Unnamed: 0", "Unnamed: 0.1", "B_sample_ID",
-                "P_sample_ID", "Bacillus", "Pathogene",
-            ]
-
-            # if isinstance(pipeline[-1], StratifiedRegressor):
-            #     for target_class in pipeline[-1].estimators.keys():
-            #         full_name = exp_filter + '_' + target_class
-            #         results = evaluate(
-            #             pipeline,
-            #             full_name + '_',
-            #             {'combinatoric': method_df},
-            #             mode="ho",
-            #             suffix="_hold_outs.pkl",
-            #             ho_folder_path="Data/Datasets/",
-            #             target=target,
-            #             remove_cols=remove_cols,
-            #             save=False,
-            #             conformal=True,
-            #             y_class=target_class,
-            #             inference=True,
-            #             parallel=True,
-            #             n_jobs_outer=12,
-            #             n_jobs_model=1,
-            #             batch_size=12,
-            #             temp_folder="./temp_results",
-            #         )
-            #         path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
-            #         results.to_csv(path_df_out)
-            #         avg_results.append(results)
-            #         widths_df["Width"] += list(results["Width"])
-            #         widths_df["Experiment"] += [exp_filter] * len(results)
-            #         widths_df["Evaluation"] += [ho_name] * len(results)
-            #         widths_df["target_class"] += [target] * len(results)
-            # else:
-            if exp_filter == '':
-                full_name = 'Impute_Normal'
-            else:
-                full_name = exp_filter
+            pipeline, method_df, _ = load_lgbm_model(
+                path_model_folder, path_df,
+                ho_name=ho_name, filter=exp_filter
+            )
+            full_name = exp_filter or 'Impute_Normal'
             results, other_outputs = evaluate(
                 pipeline,
                 full_name + '_',
@@ -3195,8 +3243,12 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
                 mode="ho",
                 suffix="_hold_outs.pkl",
                 ho_folder_path="Data/Datasets/",
-                target=target,
-                remove_cols=remove_cols,
+                target=["Score"],
+                remove_cols=[
+                    "Unnamed: 0", "Unnamed: 0.1",
+                    "B_sample_ID", "P_sample_ID",
+                    "Bacillus", "Pathogene",
+                ],
                 save=False,
                 conformal=True,
                 inference=True,
@@ -3214,73 +3266,209 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
             widths_df["Experiment"] += [exp_filter] * len(width_list)
             widths_df["Evaluation"] += [ho_name] * len(width_list)
             results.to_csv(path_df_out)
-
+        # coverage summary (unchanged)
         all_ho_results = pd.concat(avg_results, axis=0)
-        print("COEVRAGE COL", all_ho_results["Coverage"])
-        avg = all_ho_results["Coverage"].mean()
-        low, up = compute_CI(all_ho_results["Coverage"],
-                                num_iter=5000,
-                                confidence=95,
-                                seed=6262,
-                                stat_func=stat_func,
-                                mode=ci_mode)
-        coverage_df["Coverage"].append(avg)
-        coverage_df["CI95_low"].append(abs(low - avg))
-        coverage_df["CI95_up"].append(abs(up - avg))
-        if exp_filter == '':
-            exp_filter = 'Impute_Normal'
-        coverage_df["Experiment"].append(exp_filter)
-    # print("WIDTH LEN", widths_df["Width"][:10], len(widths_df["Width"]))
-    widths, coverage = pd.DataFrame(widths_df), pd.DataFrame(coverage_df)
-    # print("WIDTH DF", widths.head(), widths.shape)
-    print("Width dataframe is huge, downsampling before saving..")
-    widths = stratified_sampling(widths, ['Experiment', 'Evaluation'], 2000)
-    print("Downsampled.")
-    widths.to_csv("Results/reco_exp/conformal/widths_results.csv")
-    coverage.to_csv("Results/reco_exp/conformal/coverage_results.csv")
-    return widths, coverage
+        avg_cov = all_ho_results["Coverage"].mean()
+        low, up = compute_CI(
+            all_ho_results["Coverage"],
+            num_iter=5000,
+            confidence=95,
+            seed=6262,
+            stat_func=stat_func,
+            mode=ci_mode
+        )
+        coverage_df["Experiment"].append(full_name)
+        coverage_df["Coverage"].append(avg_cov)
+        coverage_df["CI95_low"].append(abs(low - avg_cov))
+        coverage_df["CI95_up"].append(abs(up - avg_cov))
+
+    # Build DataFrame of all widths, then summarize by group
+    widths = pd.DataFrame(widths_df)
+    
+    summary_rows = []
+    for (exp, eval_name), grp in widths.groupby(["Experiment", "Evaluation"]):
+        mean_w = grp["Width"].mean()
+        low, up = compute_CI(
+            grp["Width"],
+            num_iter=5000,
+            confidence=95,
+            seed=6262,
+            stat_func=stat_func,
+            mode=ci_mode
+        )
+        summary_rows.append({
+            "Experiment": exp,
+            "Evaluation": eval_name,
+            "Width": mean_w,
+            "CI95_low": abs(low - mean_w),
+            "CI95_up": abs(up - mean_w)
+        })
+    
+    widths_summary = pd.DataFrame(summary_rows)
+    coverage_summary = pd.DataFrame(coverage_df)
+
+    # Save out
+    widths_summary.to_csv("Results/reco_exp/conformal/widths_results.csv", index=False)
+    coverage_summary.to_csv("Results/reco_exp/conformal/coverage_results.csv", index=False)
+
+    return widths_summary, coverage_summary
 
 def stratified_sampling(df, cols, n):
     n = int(n)
     return df.groupby(cols, group_keys=False).apply(lambda x: x.sample(n))
 
-def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False, n=2000):
-    # Widths plot
-    print("Evaluations", np.unique(widths_df['Evaluation']))
-    print("Started plotting..")
-    sns.boxplot(widths_df, 
-                  orient='h', 
-                  x="Width", y="Experiment",
-                  hue="Experiment", palette="inferno")
+# def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False, n=2000):
+#     # Widths plot
+#     print("Evaluations", np.unique(widths_df['Evaluation']))
+#     print("Started plotting..")
+#     ax = sns.boxplot(widths_df, 
+#                   orient='h', 
+#                   x="Width", y="Experiment",
+#                   hue="Experiment", palette="inferno")
+#     # Compute medians per category (without hue grouping if hue matches y)
+#     medians = widths_df.groupby("Experiment")["Width"].median()
+#     offset = medians.median() * 0.02  # small offset to avoid overlap
+
+#     # Add text labels
+#     for i, (exp, med) in enumerate(medians.items()):
+#         ax.text(
+#             med + offset,    # x-position just right of the median line
+#             i,               # y-position corresponds to the box's y-index
+#             f"{med:.2f}",    # formatted median value
+#             ha="left",
+#             va="center",
+#             color="white",
+#             fontsize=9,
+#             fontweight="bold"
+#         )
+#     # plt.tight_layout()
+#     if save_path is not None:
+#         width_path = save_path[:-4] + "_width.pdf" if save_path.endswith(".pdf") else save_path + "_width.pdf"
+#         plt.savefig(width_path, format="pdf", bbox_inches="tight")
+#     if show:
+#         plt.show()
+#     plt.clf()
+
+#     # Coverage plot
+#     bars = sns.barplot(coverage_df, 
+#                        x="Experiment", y="Coverage", 
+#                        hue="Experiment", palette="flare")
+#     yerr = np.concatenate([coverage_df["CI95_low"].values.reshape(1,-1), coverage_df["CI95_up"].values.reshape(1,-1)], axis=0)
+#     bars.errorbar(range(len(coverage_df)), coverage_df["Coverage"], fmt='none',
+#                   yerr=yerr, capsize=4, elinewidth=1.5, color="black")
+#     bars.tick_params(axis="x", rotation=45)
+
+#     for patch in bars.patches:
+#         x_center = patch.get_x() + patch.get_width() / 2.0
+#         y_top = patch.get_height()
+#         bars.text(x_center, y_top + 0.015, f"{y_top:.3f}",
+#                   ha="center", va="bottom", color="black",
+#                   fontsize=10, fontweight="bold")
+
+#     plt.title("Comparison of Conformal Prediction Coverage", fontsize=14, fontweight="bold")
+#     if save_path is not None:
+#         cov_path = save_path[:-4] + "_coverage.pdf" if save_path.endswith(".pdf") else save_path + "_coverage.pdf"
+#         plt.savefig(cov_path, format="pdf", bbox_inches="tight")
+#     if show:
+#         plt.show()
+
+def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
+    # --- Widths bar plot (mean + CI95) ---
+    # widths_df must have: Experiment, Evaluation, Width, CI95_low, CI95_up
+    plt.figure(figsize=(10,6))
+    bars_w = sns.barplot(
+        data=widths_df,
+        x="Experiment",
+        y="Width",
+        hue="Evaluation",
+        palette="flare",
+        edgecolor="black"
+    )
+
+    # assemble symmetric yerr for each bar
+    errs = np.vstack([
+        widths_df["CI95_low"].values,
+        widths_df["CI95_up"].values
+    ])
+    bars_w.errorbar(
+        x=np.arange(len(widths_df)),
+        y=widths_df["Width"],
+        yerr=errs,
+        fmt="none",
+        ecolor="black",
+        capsize=5,
+        elinewidth=1.5
+    )
+
+    # add labels above each bar
+    for patch, val in zip(bars_w.patches, widths_df["Width"]):
+        x_center = patch.get_x() + patch.get_width() / 2.0
+        y_top = val
+        bars_w.text(
+            x_center, y_top + 0.01,
+            f"{y_top:.3f}",
+            ha="center", va="bottom",
+            color="black", fontsize=10, fontweight="bold"
+        )
+
+    bars_w.set_ylabel("Mean Conformal Interval Width", fontsize=12, fontweight="bold")
+    bars_w.set_xlabel("")
+    bars_w.tick_params(axis="x", rotation=45)
+    plt.title("Comparison of Conformal Interval Widths", fontsize=14, fontweight="bold")
+    plt.tight_layout()
+
     if save_path is not None:
-        width_path = save_path[:-4] + "_width.pdf" if save_path.endswith(".pdf") else save_path + "_width.pdf"
-        plt.savefig(width_path, format="pdf", bbox_inches="tight")
+        wpath = save_path[:-4] + "_width.pdf" if save_path.endswith(".pdf") else save_path + "_width.pdf"
+        plt.savefig(wpath, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
     plt.clf()
 
-    # Coverage plot
-    bars = sns.barplot(coverage_df, 
-                       x="Experiment", y="Coverage", 
-                       hue="Experiment", palette="flare")
-    yerr = np.concatenate([coverage_df["CI95_low"].values.reshape(1,-1), coverage_df["CI95_up"].values.reshape(1,-1)], axis=0)
-    bars.errorbar(range(len(coverage_df)), coverage_df["Coverage"], fmt='none',
-                  yerr=yerr, capsize=4, elinewidth=1.5, color="black")
-    bars.tick_params(axis="x", rotation=45)
-
-    for patch in bars.patches:
+    # --- Coverage bar plot (unchanged) ---
+    plt.figure(figsize=(10,6))
+    bars_c = sns.barplot(
+        data=coverage_df,
+        x="Experiment",
+        y="Coverage",
+        hue="Experiment",
+        palette="flare",
+        edgecolor="black"
+    )
+    yerr = np.vstack([
+        coverage_df["CI95_low"].values,
+        coverage_df["CI95_up"].values
+    ])
+    bars_c.errorbar(
+        x=np.arange(len(coverage_df)),
+        y=coverage_df["Coverage"],
+        yerr=yerr,
+        fmt="none",
+        capsize=5,
+        elinewidth=1.5,
+        color="black"
+    )
+    for patch in bars_c.patches:
         x_center = patch.get_x() + patch.get_width() / 2.0
         y_top = patch.get_height()
-        bars.text(x_center, y_top + 0.015, f"{y_top:.3f}",
-                  ha="center", va="bottom", color="black",
-                  fontsize=10, fontweight="bold")
+        bars_c.text(
+            x_center, y_top + 0.015,
+            f"{y_top:.3f}",
+            ha="center", va="bottom",
+            color="black", fontsize=10, fontweight="bold"
+        )
 
+    bars_c.tick_params(axis="x", rotation=45)
     plt.title("Comparison of Conformal Prediction Coverage", fontsize=14, fontweight="bold")
+    plt.ylabel("Coverage", fontsize=12, fontweight="bold")
+    plt.xlabel("")
+    plt.tight_layout()
+
     if save_path is not None:
-        cov_path = save_path[:-4] + "_coverage.pdf" if save_path.endswith(".pdf") else save_path + "_coverage.pdf"
-        plt.savefig(cov_path, format="pdf", bbox_inches="tight")
+        cpath = save_path[:-4] + "_coverage.pdf" if save_path.endswith(".pdf") else save_path + "_coverage.pdf"
+        plt.savefig(cpath, format="pdf", bbox_inches="tight")
     if show:
         plt.show()
+    plt.clf()
 
 def plot_widths_by_org(widths_df,
                        ho_pathogen,
@@ -3322,7 +3510,7 @@ def plot_widths_by_org(widths_df,
         ax.set_title(f"{name} Interval Widths", fontsize=14, fontweight='bold')
         ax.tick_params(axis='both', which='major', labelsize=12)
     
-    plt.tight_layout()
+    # plt.tight_layout()
     # Save
     if save_path is not None:
         base, ext = os.path.splitext(save_path)
