@@ -3567,7 +3567,7 @@ def plot_conformal(models_list, path_df, ci_mode='bca', by_org=False, save_path=
     coverage_path = "Results/reco_exp/conformal/coverage_results.csv"
     if os.path.exists(summary_width_path) & os.path.exists(detailed_width_path) & os.path.exists(coverage_path):
         summary_width_df = pd.read_csv(summary_width_path)
-        detailed_width_path = pd.read_csv(detailed_width_path)
+        detailed_width_df = pd.read_csv(detailed_width_path)
         coverage_df = pd.read_csv(coverage_path)
     else:
         detailed_width_df, summary_width_df, coverage_df = compute_conformal_results(models_list, path_df, ci_mode)
