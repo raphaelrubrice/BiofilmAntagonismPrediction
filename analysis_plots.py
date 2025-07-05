@@ -1690,7 +1690,10 @@ def load_lgbm_model(path_model_folder=None, path_df=None, ho_name="1234_x_S.en",
         path_model_folder = "./Results/models/"
     file_list = os.listdir(path_model_folder)
     file_list = [path_model_folder + file for file in file_list]
+    # print(file_list)
     model_file = [file for file in file_list if ho_name in file]
+    # print(model_file)
+    # print([file for file in model_file if file.endswith("pkl") and filter in file][0])
     model_file = [file for file in model_file if file.endswith("pkl") and filter in file][0]
     if path_df is None:
         method_df = pd.read_csv("./Data/Datasets/fe_combinatoric_COI.csv")
@@ -3140,6 +3143,10 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
     for path_model_folder, exp_filter in models_list:
         avg_results = []
         for ho_name in all_ho_names[:3]:
+            print(path_model_folder)
+            print(path_df)
+            print(ho_name)
+            print(exp_filter)
             pipeline, method_df, _ = load_lgbm_model(path_model_folder, path_df, ho_name=ho_name, filter=exp_filter)
             target = ["Score"]
             remove_cols = [
@@ -3178,8 +3185,9 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
             #         widths_df["target_class"] += [target] * len(results)
             # else:
             if exp_filter == '':
-                exp_filter = 'Impute_Normal'
-            full_name = exp_filter
+                full_name = 'Impute_Normal'
+            else:
+                full_name = exp_filter
             results, other_outputs = evaluate(
                 pipeline,
                 full_name + '_',
@@ -3208,7 +3216,8 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
             results.to_csv(path_df_out)
 
         all_ho_results = pd.concat(avg_results, axis=0)
-        avg = np.mean(all_ho_results["Coverage"])
+        print("COEVRAGE COL", all_ho_results["Coverage"])
+        avg = all_ho_results["Coverage"].mean()
         low, up = compute_CI(all_ho_results["Coverage"],
                                 num_iter=5000,
                                 confidence=95,
@@ -3221,24 +3230,28 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
         if exp_filter == '':
             exp_filter = 'Impute_Normal'
         coverage_df["Experiment"].append(exp_filter)
-    print("WIDTH LEN", widths_df["Width"][:10], len(widths_df["Width"]))
+    # print("WIDTH LEN", widths_df["Width"][:10], len(widths_df["Width"]))
     widths, coverage = pd.DataFrame(widths_df), pd.DataFrame(coverage_df)
-    print("WIDTH DF", widths.head(), widths.shape)
+    # print("WIDTH DF", widths.head(), widths.shape)
+    print("Width dataframe is huge, downsampling before saving..")
+    widths = stratified_sampling(widths, ['Experiment', 'Evaluation'], 2000)
+    print("Downsampled.")
     widths.to_csv("Results/reco_exp/conformal/widths_results.csv")
     coverage.to_csv("Results/reco_exp/conformal/coverage_results.csv")
     return widths, coverage
 
 def stratified_sampling(df, cols, n):
+    n = int(n)
     return df.groupby(cols, group_keys=False).apply(lambda x: x.sample(n))
 
-def plot_conformal_data(widths_df, coverage_df, n=2000, save_path=None, show=False):
+def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False, n=2000):
     # Widths plot
-    print("BEFORE WIDTH DF", widths_df.head(), widths_df.shape)
-    widths_df = stratified_sampling(widths_df, ['Experiment', 'Evaluation'], n)
-    print("AFTER WIDTH DF", widths_df.head(), widths_df.shape)
+    print("Evaluations", np.unique(widths_df['Evaluation']))
+    print("Started plotting..")
     sns.boxenplot(widths_df, 
                   orient='h', 
                   y="Width", x="Experiment",
+                  k_depth=2,
                   width_method='linear', 
                   hue="Experiment", palette="inferno")
     if save_path is not None:
