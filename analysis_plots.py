@@ -3198,9 +3198,11 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
             )
             path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
             avg_results.append(results)
-            widths_df["Width"] += other_outputs["Width"].reshape(1,-1).tolist()
-            widths_df["Experiment"] += [exp_filter] * len(other_outputs["Width"].tolist())
-            widths_df["Evaluation"] += [ho_name] * len(other_outputs["Width"].tolist())
+            width_list = other_outputs["Width"].reshape(1,-1).tolist()[0]
+            print(len(width_list))
+            widths_df["Width"] += width_list
+            widths_df["Experiment"] += [exp_filter] * len(width_list)
+            widths_df["Evaluation"] += [ho_name] * len(width_list)
             results.to_csv(path_df_out)
 
         all_ho_results = pd.concat(avg_results, axis=0)
