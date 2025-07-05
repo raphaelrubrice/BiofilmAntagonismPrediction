@@ -3445,7 +3445,7 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
         x_center = patch.get_x() + patch.get_width() / 2.0
         y_top = patch.get_height()
         bars_w.text(
-            x_center, y_top + 0.01,
+            x_center + 0.33*patch.get_width(), y_top + 0.01,
             f"{y_top:.3f}",
             ha="center", va="bottom",
             color="black", fontsize=10, fontweight="bold"
@@ -3464,7 +3464,7 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
         plt.show()
     plt.clf()
 
-    # --- Coverage bar plot (unchanged) ---
+    # --- Coverage bar plot ---
     plt.figure(figsize=(10,10))
     bars_c = sns.barplot(
         data=coverage_df,
@@ -3539,13 +3539,14 @@ def plot_widths_by_org(widths_df,
               ('Interaction', I_df, axes[2])]
 
     for name, df, ax in groups:
+        print(name)
+        print(df.head())
         sns.boxplot(
             data=df,
-            x='Width',
-            y='Experiment',
+            y='Width',
+            x='Experiment',
             ax=ax,
             hue='Evaluation',
-            orient='h',
             palette='inferno'
         )
         ax.set_title(f"{name} Interval Widths", fontsize=14, fontweight='bold')
