@@ -2665,14 +2665,14 @@ def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
         
         # labels slightly off center
         for idx, (val, ytick) in enumerate(zip(centers, np.arange(len(df)))):
-            ax.text(val + 0.01, ytick, f"{val:.3f}",
+            ax.text(val + 0.005, ytick + 0.35, f"{val:.3f}",
                     va="center", ha="left", fontsize=10, fontweight="bold")
         
         ax.set_xlabel(f"{addon} Mean Absolute Error", fontsize=12, fontweight="bold")
         ax.set_ylabel("")
         ax.set_title(title_suffix, fontsize=14, fontweight="bold")
         # subtitle with smaller font
-        ax.text(0, -0.1, present_bias_dict({
+        ax.text(0, -0.35, present_bias_dict({
             k: bias_dict[k] for k in bias_dict
             if any(m in k for m in modes) or k == 'Sign_Normal'
         }), fontsize=10, transform=ax.transAxes, va="top")
