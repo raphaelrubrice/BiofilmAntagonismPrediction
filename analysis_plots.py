@@ -3248,11 +3248,9 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False, n=20
     # Widths plot
     print("Evaluations", np.unique(widths_df['Evaluation']))
     print("Started plotting..")
-    sns.boxenplot(widths_df, 
+    sns.boxplot(widths_df, 
                   orient='h', 
                   y="Width", x="Experiment",
-                  k_depth=2,
-                  width_method='linear', 
                   hue="Experiment", palette="inferno")
     if save_path is not None:
         width_path = save_path[:-4] + "_width.pdf" if save_path.endswith(".pdf") else save_path + "_width.pdf"
