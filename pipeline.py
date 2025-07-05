@@ -543,23 +543,25 @@ def evaluate_method_disk_batched(
                 if isinstance(result_list[0], tuple):
                     batch_df = pd.concat([res[0] for res in result_list], axis=0)
                     batch_dico = {key:np.concatenate([res[1][key].reshape(-1,1) for res in result_list], axis=0) for key in result_list[0][1].keys()}
+                    TUPLE_FLAG = True
                 else:
                     batch_df = pd.concat(result_list, axis=0)
                     batch_dico = None
+                    TUPLE_FLAG = False
                 batch_file = os.path.join(
                     temp_folder,
                     f"batch_{batch_idx:03d}_{method_name}_{estimator_name}.csv",
                 )
                 batch_df.to_csv(batch_file)
                 batch_files.append(batch_file)
-
-                batch_file = os.path.join(
-                    temp_folder,
-                    f"batch_{batch_idx:03d}_{method_name}_{estimator_name}.pkl",
-                )
-                with open(batch_file, 'wb') as f:
-                    pkl.dump(batch_dico, f)
-                batch_files_dico.append(batch_file)
+                if batch_dico is not None:
+                    batch_file = os.path.join(
+                        temp_folder,
+                        f"batch_{batch_idx:03d}_{method_name}_{estimator_name}.pkl",
+                    )
+                    with open(batch_file, 'wb') as f:
+                        pkl.dump(batch_dico, f)
+                    batch_files_dico.append(batch_file)
 
                 del result_list, batch_df, batch_dico
                 gc.collect()
@@ -576,12 +578,15 @@ def evaluate_method_disk_batched(
 
     if batch_files_dico != []:
         final_dico_list = []
+        print(batch_files_dico)
         for batch_file in batch_files_dico:
             with open(batch_file, 'rb') as f:
                 batch_dico = pkl.load(f)
-            final_dico_list.append(batch_dico)
+            final_dico_list.append(batch_dico.copy())
             del batch_dico
             gc.collect()
+        print(final_dico_list)
+        print(batch_files_dico)
         final_dico = {key:np.concatenate([dico[key].reshape(-1,1) for dico in final_dico_list], axis=0) for key in final_dico_list[0].keys()}
 
     # Optionally clean up temporary files.

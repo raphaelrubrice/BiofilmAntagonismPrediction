@@ -2631,51 +2631,116 @@ def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
             bias_dict[reg] = bias
             bias_dict[f"Sign_{reg}"] = sign
 
-    # Create bar plots for Pathogen and Bacillus groups.
-    cmap = sns.color_palette("viridis_r", as_cmap=True)
-
-    bars = sns.barplot(
-        plot_df,
-        x="Experiment",
-        y=addon + "MAE",
-        palette="inferno",
-        edgecolor="black",
-    )
-    intervals = np.array([plot_df["MAE_CI95_low"], plot_df["MAE_CI95_up"]])
-    bars.errorbar(
-        x=np.arange(plot_df.shape[0]),
-        y=plot_df[addon + "MAE"],
-        yerr=intervals,
-        fmt="o",
-        capsize=5,
-        color="black",
-    )
-    plt.ylabel(addon + "Mean Absolute Error", fontsize=14, fontweight="bold")
-    bars.tick_params(axis="x", rotation=45)
-    for patch in bars.patches:
-        x_center = patch.get_x() + patch.get_width() / 2.0
-        y_top = patch.get_height()
-        label = f"{patch.get_height():.3f}"
-        bars.text(
-            x_center,
-            y_top + 0.01,
-            label,
-            ha="center",
-            va="bottom",
-            color="black",
-            fontsize=12,
-            fontweight="bold",
+    def make_plot(modes, title_suffix, fname_suffix):
+        df = plot_df[plot_df["Experiment"].str.contains("|".join(modes))].copy()
+        df = df.sort_values(by=addon + "MAE")
+        fig, ax = plt.subplots(figsize=(8, max(4, 0.5 * len(df))))
+        
+        # horizontal bar plot
+        bars = sns.barplot(
+            data=df,
+            x=addon + "MAE",
+            y="Experiment",
+            orient="h",
+            palette="inferno_r",
+            edgecolor="black",
+            ax=ax
         )
-    plt.title(
-        f"Comparison of Weighted MAE with or without Imputation\n{present_bias_dict(bias_dict)}", 
-        fontsize=14, 
-        fontweight="bold"
-    )
-    if save_path is not None:
-        save_path = save_path if save_path.endswith(".pdf") else save_path + ".pdf"
-        plt.savefig(save_path, format="pdf", bbox_inches="tight")
-    if show:
-        plt.show()
+        
+        # compute symmetric error distances
+        errs_low = df["MAE_CI95_low"].values
+        errs_up = df["MAE_CI95_up"].values
+        centers = df[addon + "MAE"].values
+        # distances must be positive
+        xerr = np.vstack([centers - errs_low, errs_up - centers])
+        
+        ax.errorbar(
+            x=centers,
+            y=np.arange(len(df)),
+            xerr=xerr,
+            fmt="none",
+            ecolor="black",
+            capsize=5
+        )
+        
+        # labels slightly off center
+        for idx, (val, ytick) in enumerate(zip(centers, np.arange(len(df)))):
+            ax.text(val + 0.01, ytick, f"{val:.3f}",
+                    va="center", ha="left", fontsize=10, fontweight="bold")
+        
+        ax.set_xlabel(f"{addon} Mean Absolute Error", fontsize=12, fontweight="bold")
+        ax.set_ylabel("")
+        ax.set_title(title_suffix, fontsize=14, fontweight="bold")
+        # subtitle with smaller font
+        ax.text(0, -0.1, present_bias_dict({
+            k: bias_dict[k] for k in bias_dict
+            if any(m in k for m in modes) or k == 'Sign_Normal'
+        }), fontsize=10, transform=ax.transAxes, va="top")
+        
+        plt.tight_layout()
+        if save_path:
+            filename = save_path.rstrip('.pdf') + f"_{fname_suffix}.pdf"
+            plt.savefig(filename)
+        if show:
+            plt.show()
+    
+    # 1) Normal vs Quantile-Stratified (both Mixed and Default)
+    quant_modes = ["Normal", "Quantile_Mixed_Stratified", "Quantile_Default_Stratified"]
+    make_plot(quant_modes, "Normal vs Quantile-Stratified", "normal_vs_quantile")
+
+    # 2) Normal vs Custom-Stratified
+    custom_modes = ["Normal", "Custom_Mixed_Stratified", "Custom_Default_Stratified"]
+    make_plot(custom_modes, "Normal vs Custom-Stratified", "normal_vs_custom")
+
+    # 3) Quantile vs Custom (just Stratified Mixed+Default)
+    qc_modes = ["Quantile_Mixed_Stratified", "Quantile_Default_Stratified",
+                "Custom_Mixed_Stratified", "Custom_Default_Stratified"]
+    make_plot(qc_modes, "Quantile-Stratified vs Custom-Stratified", "quantile_vs_custom")
+    # # Create bar plots for Pathogen and Bacillus groups.
+    # cmap = sns.color_palette("viridis_r", as_cmap=True)
+
+    # bars = sns.barplot(
+    #     plot_df,
+    #     x="Experiment",
+    #     y=addon + "MAE",
+    #     palette="inferno",
+    #     edgecolor="black",
+    # )
+    # intervals = np.array([plot_df["MAE_CI95_low"], plot_df["MAE_CI95_up"]])
+    # bars.errorbar(
+    #     x=np.arange(plot_df.shape[0]),
+    #     y=plot_df[addon + "MAE"],
+    #     yerr=intervals,
+    #     fmt="o",
+    #     capsize=5,
+    #     color="black",
+    # )
+    # plt.ylabel(addon + "Mean Absolute Error", fontsize=14, fontweight="bold")
+    # bars.tick_params(axis="x", rotation=45)
+    # for patch in bars.patches:
+    #     x_center = patch.get_x() + patch.get_width() / 2.0
+    #     y_top = patch.get_height()
+    #     label = f"{patch.get_height():.3f}"
+    #     bars.text(
+    #         x_center,
+    #         y_top + 0.01,
+    #         label,
+    #         ha="center",
+    #         va="bottom",
+    #         color="black",
+    #         fontsize=12,
+    #         fontweight="bold",
+    #     )
+    # plt.title(
+    #     f"Comparison of Weighted MAE with or without Imputation\n{present_bias_dict(bias_dict)}", 
+    #     fontsize=14, 
+    #     fontweight="bold"
+    # )
+    # if save_path is not None:
+    #     save_path = save_path if save_path.endswith(".pdf") else save_path + ".pdf"
+    #     plt.savefig(save_path, format="pdf", bbox_inches="tight")
+    # if show:
+    #     plt.show()
 
 def add_to_name(string, addon):
     if string is not None:
@@ -3131,8 +3196,8 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
             path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
             avg_results.append(results)
             widths_df["Width"] += other_outputs["Width"].tolist()
-            widths_df["Experiment"] += [exp_filter] * len(results)
-            widths_df["Evaluation"] += [ho_name] * len(results)
+            widths_df["Experiment"] += [exp_filter] * len(other_outputs["Width"].tolist())
+            widths_df["Evaluation"] += [ho_name] * len(other_outputs["Width"].tolist())
             results.to_csv(path_df_out)
 
         all_ho_results = pd.concat(avg_results, axis=0)
