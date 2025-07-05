@@ -3215,7 +3215,9 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
         if exp_filter == '':
             exp_filter = 'Impute_Normal'
         coverage_df["Experiment"].append(exp_filter)
+    print("WIDTH LEN", widths_df["Width"][:10], len(widths_df["Width"]))
     widths, coverage = pd.DataFrame(widths_df), pd.DataFrame(coverage_df)
+    print("WIDTH DF", widths, widths.shape)
     widths.to_csv("Results/reco_exp/conformal/widths_results.csv")
     coverage.to_csv("Results/reco_exp/conformal/coverage_results.csv")
     return widths, coverage
