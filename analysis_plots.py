@@ -3234,7 +3234,7 @@ def stratified_sampling(df, cols, n):
 def plot_conformal_data(widths_df, coverage_df, n=2000, save_path=None, show=False):
     # Widths plot
     print("BEFORE WIDTH DF", widths_df.head(), widths_df.shape)
-    widths_df = stratified_sampling(widths_df, ['Exeriment', 'Evaluation'], n)
+    widths_df = stratified_sampling(widths_df, ['Experiment', 'Evaluation'], n)
     print("AFTER WIDTH DF", widths_df.head(), widths_df.shape)
     sns.boxenplot(widths_df, 
                   orient='h', 
