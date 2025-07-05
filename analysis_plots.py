@@ -2666,7 +2666,7 @@ def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
         # labels slightly off center
         for idx, (val, ytick) in enumerate(zip(centers, np.arange(len(df)))):
             ax.text(val + 0.005, ytick + 0.35, f"{val:.3f}",
-                    va="center", ha="left", fontsize=10, fontweight="bold")
+                    va="center", ha="left", fontsize=8, fontweight="bold")
         
         ax.set_xlabel(f"{addon} Mean Absolute Error", fontsize=12, fontweight="bold")
         ax.set_ylabel("")
