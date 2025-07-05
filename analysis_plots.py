@@ -3130,6 +3130,7 @@ def parse_numpy_string(s):
     return np.array([float(x) for x in parts])
 
 def compute_conformal_results(models_list, path_df, ci_mode='bca'):
+    warnings.filterwarnings('ignore', category=RuntimeWarning)
     os.makedirs(f"./Results/reco_exp/conformal/", exist_ok=True)
     widths_df = {"Experiment": [], "Width": [], "Evaluation":[]}
     coverage_df = {"Experiment": [], "Coverage": [], "CI95_low": [], "CI95_up": []}
@@ -3195,7 +3196,7 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
             )
             path_df_out = f"Results/reco_exp/conformal/ho_{full_name}_results.csv"
             avg_results.append(results)
-            widths_df["Width"] += other_outputs["Width"].tolist()
+            widths_df["Width"] += other_outputs["Width"].reshape(1,-1).tolist()
             widths_df["Experiment"] += [exp_filter] * len(other_outputs["Width"].tolist())
             widths_df["Evaluation"] += [ho_name] * len(other_outputs["Width"].tolist())
             results.to_csv(path_df_out)
