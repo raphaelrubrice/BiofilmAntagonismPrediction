@@ -3234,7 +3234,7 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
     sns.boxenplot(widths_df, 
                   orient='h', 
                   y="Width", x="Experiment", 
-                  width_method='area', 
+                  width_method='linear', 
                   hue="Experiment", palette="inferno")
     if save_path is not None:
         width_path = save_path[:-4] + "_width.pdf" if save_path.endswith(".pdf") else save_path + "_width.pdf"
@@ -3301,7 +3301,7 @@ def plot_widths_by_org(widths_df,
             y='Experiment',
             ax=ax,
             orient='h',
-            width_method='area',
+            width_method='linear',
             palette='inferno'
         )
         ax.set_title(f"{name} Interval Widths", fontsize=14, fontweight='bold')
