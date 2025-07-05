@@ -3177,6 +3177,8 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
             #         widths_df["Evaluation"] += [ho_name] * len(results)
             #         widths_df["target_class"] += [target] * len(results)
             # else:
+            if exp_filter == '':
+                exp_filter = 'Impute_Normal'
             full_name = exp_filter
             results, other_outputs = evaluate(
                 pipeline,
