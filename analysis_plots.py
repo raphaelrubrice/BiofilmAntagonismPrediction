@@ -3,7 +3,7 @@ import numpy as np
 import pickle as pkl
 import os, re, argparse, glob, traceback
 import warnings
-import ast
+from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -3284,9 +3284,12 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
 
     # Build DataFrame of all widths, then summarize by group
     widths = pd.DataFrame(widths_df)
-    
+    print("WIDTHS", widths.shape)
+    # Dataframe is huge so we downsample for reasonable computation time
+    widths = stratified_sampling(widths, ['Experiment', 'Evaluation'], 2000)
+    print("WIDTHS", widths.shape)
     summary_rows = []
-    for (exp, eval_name), grp in widths.groupby(["Experiment", "Evaluation"]):
+    for (exp, eval_name), grp in tqdm(widths.groupby(["Experiment", "Evaluation"])):
         mean_w = grp["Width"].mean()
         low, up = compute_CI(
             grp["Width"],
