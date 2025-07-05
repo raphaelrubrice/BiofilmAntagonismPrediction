@@ -1,5 +1,5 @@
 import numpy as np
-import fireducks.pandas as pd
+import pandas as pd
 from sklearn.base import TransformerMixin, RegressorMixin, clone, BaseEstimator
 from sklearn.model_selection import train_test_split
 from joblib import Memory, Parallel, delayed

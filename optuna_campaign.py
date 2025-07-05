@@ -1,4 +1,4 @@
-import fireducks.pandas as pd
+import pandas as pd
 import numpy as np
 import pickle as pkl
 import os, gc, re
