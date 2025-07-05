@@ -2652,7 +2652,7 @@ def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
         errs_up = df["MAE_CI95_up"].values
         centers = df[addon + "MAE"].values
         # distances must be positive
-        xerr = np.vstack([centers - errs_low, errs_up - centers])
+        xerr = np.vstack([errs_low, errs_up])
         
         ax.errorbar(
             x=centers,
@@ -3131,6 +3131,8 @@ def parse_numpy_string(s):
 
 def compute_conformal_results(models_list, path_df, ci_mode='bca'):
     warnings.filterwarnings('ignore', category=RuntimeWarning)
+    warnings.filterwarnings('ignore', category=UserWarning)
+    warnings.filterwarnings('ignore', category=DataConversionWarning)
     os.makedirs(f"./Results/reco_exp/conformal/", exist_ok=True)
     widths_df = {"Experiment": [], "Width": [], "Evaluation":[]}
     coverage_df = {"Experiment": [], "Coverage": [], "CI95_low": [], "CI95_up": []}
