@@ -3228,12 +3228,17 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
     coverage.to_csv("Results/reco_exp/conformal/coverage_results.csv")
     return widths, coverage
 
-def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
+def stratified_sampling(df, cols, n):
+    return df.groupby(cols, group_keys=False).apply(lambda x: x.sample(n))
+
+def plot_conformal_data(widths_df, coverage_df, n=2000, save_path=None, show=False):
     # Widths plot
-    print("WIDTH DF", widths_df.head())
+    print("BEFORE WIDTH DF", widths_df.head(), widths_df.shape)
+    widths_df = stratified_sampling(widths_df, ['Exeriment', 'Evaluation'], n)
+    print("AFTER WIDTH DF", widths_df.head(), widths_df.shape)
     sns.boxenplot(widths_df, 
                   orient='h', 
-                  y="Width", x="Experiment", 
+                  y="Width", x="Experiment",
                   width_method='linear', 
                   hue="Experiment", palette="inferno")
     if save_path is not None:
