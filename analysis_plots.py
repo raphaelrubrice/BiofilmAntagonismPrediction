@@ -3415,7 +3415,6 @@ def stratified_sampling(df, cols, n):
 def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
     # --- Widths bar plot (mean + CI95) ---
     # widths_df must have: Experiment, Evaluation, Width, CI95_low, CI95_up
-    plt.figure(figsize=(10,10))
     bars_w = sns.barplot(
         data=widths_df,
         x="Experiment",
@@ -3465,7 +3464,6 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
     plt.clf()
 
     # --- Coverage bar plot ---
-    plt.figure(figsize=(10,10))
     bars_c = sns.barplot(
         data=coverage_df,
         x="Experiment",
@@ -3532,35 +3530,121 @@ def plot_widths_by_org(widths_df,
     B_df = widths_df[widths_df['Evaluation'].isin(ho_bacillus)].copy()
     I_df = widths_df[widths_df['Evaluation'].isin(ho_interaction)].copy()
 
-    # Setup figure with 3 subplots
-    fig, axes = plt.subplots(3, 1, figsize=(10, 15), sharex=False)
-    groups = [('Pathogen', P_df, axes[0]),
-              ('Bacillus', B_df, axes[1]),
-              ('Interaction', I_df, axes[2])]
+    for experiment in np.unique(P_df["Experiment"]):
+        P_plot_df = P_df[P_df["Experiment"] == experiment]
+        B_plot_df = B_df[B_df["Experiment"] == experiment]
+        Int_plot_df = I_df[I_df["Experiment"] == experiment]
+        # Create bar plots for Pathogen and Bacillus groups.
+        fig, ax = plt.subplots(2, 1, figsize=(12, 10), sharey=True)
+        cmap = sns.color_palette("viridis_r", as_cmap=True)
 
-    for name, df, ax in groups:
-        print(name)
-        print(df.head())
-        sns.boxplot(
-            data=df,
-            y='Width',
-            x='Experiment',
-            ax=ax,
-            hue='Evaluation',
-            palette='inferno'
+        sns.barplot(
+            P_plot_df,
+            x="Evaluation",
+            y="Width",
+            ax=ax[0],
+            palette="viridis",
+            edgecolor="black",
         )
-        ax.set_title(f"{name} Interval Widths", fontsize=14, fontweight='bold')
-        ax.tick_params(axis='both', which='major', labelsize=12)
-    
-    # plt.tight_layout()
-    # Save
-    if save_path is not None:
-        base, ext = os.path.splitext(save_path)
-        out_path = f"{base}_widths_by_org.pdf"
-        plt.savefig(out_path, format='pdf', bbox_inches='tight')
-    # Show
-    if show:
-        plt.show()
+        intervals = np.array([P_plot_df["CI95_low"], P_plot_df["CI95_up"]])
+        ax[0].errorbar(
+            x=np.arange(P_plot_df.shape[0]),
+            y=P_plot_df["Width"],
+            yerr=intervals,
+            fmt="o",
+            capsize=5,
+            color="black",
+        )
+        ax[0].set_xlabel("Pathogen", fontsize=14, fontweight="bold")
+        ax[0].set_ylabel("Average Width", fontsize=14, fontweight="bold")
+        ax[0].tick_params(axis="x", rotation=45)
+        for patch in ax[0].patches:
+            x_center = patch.get_x() + patch.get_width() / 2.0
+            y_top = patch.get_height()
+            label = f"{patch.get_height():.3f}"
+            ax[0].text(
+                x_center,
+                y_top + 0.01,
+                label,
+                ha="center",
+                va="bottom",
+                color="black",
+                fontsize=12,
+                fontweight="bold",
+            )
+        ax[0].legend(loc="upper right", fontsize=12)
+
+        sns.barplot(
+            B_plot_df,
+            x="Evaluation",
+            y="Width",
+            ax=ax[1],
+            palette="viridis",
+            edgecolor="black",
+        )
+        intervals = np.array([B_plot_df["CI95_low"], B_plot_df["CI95_up"]])
+        ax[1].errorbar(
+            x=np.arange(B_plot_df.shape[0]),
+            y=B_plot_df["Width"],
+            yerr=intervals,
+            fmt="o",
+            capsize=5,
+            color="black",
+        )
+        ax[1].set_xlabel("Bacillus", fontsize=14, fontweight="bold")
+        ax[1].set_ylabel("Average Width", fontsize=14, fontweight="bold")
+        ax[1].tick_params(axis="x", rotation=45)
+        for patch in ax[1].patches:
+            x_center = patch.get_x() + patch.get_width() / 2.0
+            y_top = patch.get_height()
+            label = f"{patch.get_height():.3f}"
+            ax[1].text(
+                x_center,
+                y_top + 0.01,
+                label,
+                ha="center",
+                va="center",
+                color="black",
+                fontsize=12,
+                fontweight="bold",
+            )
+        ax[1].legend(loc="upper right", fontsize=12)
+        plt.suptitle(f"Widths of Conformal Predictions Intervals by Organism \nExperiment: {experiment}", fontsize=16, fontweight="bold")
+        plt.tight_layout()
+        if save_path is not None:
+            save_path_bis = (
+                save_path + f"{experiment}_orgs.pdf"
+                if not save_path.endswith(".pdf")
+                else save_path.replace(".pdf", f"{experiment}_orgs.pdf")
+            )
+            plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
+        if show:
+            plt.show()
+
+        # Plot heatmap for Interaction group.
+        plt.figure(figsize=(6, 20))
+        Int_plot_df.set_index("Evaluation", inplace=True)
+        sns.heatmap(
+            Int_plot_df[["Width"]],
+            annot=True,
+            fmt=".3f",
+            cmap="viridis_r",
+            linewidths=0.5,
+            linecolor="black",
+            cbar_kws={"label": "Average Widths"},
+            annot_kws={"size": 10},
+            yticklabels=True,
+        )
+        plt.title("Interaction Width Heatmap", fontsize=14, fontweight="bold")
+        if save_path is not None:
+            save_path_bis = (
+                save_path + f"{experiment}_int.pdf"
+                if not save_path.endswith(".pdf")
+                else save_path.replace(".pdf", f"{experiment}_int.pdf")
+            )
+            plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
+        if show:
+            plt.show()
 
 def plot_conformal(models_list, path_df, ci_mode='bca', by_org=False, save_path=None, show=False):
     detailed_width_path = "Results/reco_exp/conformal/detailed_widths_results.csv"
