@@ -201,7 +201,7 @@ class StratifiedRegressor(LGBMRegressor):
     def fit(self, X, y, fit_params={}):
         if self.router_training:
             splitted, X_router, y_router = self.split(X, y)
-            return self.router_training(splitted, X_router, y_router, fit_params)
+            return self.routed_fit(X_router, y_router, splitted, fit_params)
         # If not in router mode
         splitted = self.split(X, y)
         if self.mixed_training:
@@ -218,8 +218,8 @@ class StratifiedRegressor(LGBMRegressor):
             if np.sum(mask) >= 1:
                 X_submodel = X[mask]
                 key = self.router_mapping[idx]
-                y_pred[mask] = self.estimators[key].predict(X_submodel)
-                estimator_track[mask] = [key] * np.sum(mask)
+                y_pred[mask] = self.estimators[key].predict(X_submodel).reshape(-1,1)
+                estimator_track[mask] = np.array([key] * np.sum(mask)).reshape(-1,1)
         return y_pred, estimator_track
     
     def get_stratification_masks(self, X, return_y_oracle=False):
