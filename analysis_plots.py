@@ -2699,6 +2699,10 @@ def plot_impute_bias(path_df=None, ci_mode="bca", save_path=None, show=False):
     qc_modes = ["Quantile_Mixed_Stratified", "Quantile_Default_Stratified",
                 "Custom_Mixed_Stratified", "Custom_Default_Stratified"]
     make_plot(qc_modes, "Quantile-Stratified vs Custom-Stratified", "quantile_vs_custom")
+
+    # 4) Normal only (Impute vs No Impute)
+    quant_modes = ["Normal"]
+    make_plot(quant_modes, "Imputation vs No Imputation", "impute_vs_no_impute")
     # # Create bar plots for Pathogen and Bacillus groups.
     # cmap = sns.color_palette("viridis_r", as_cmap=True)
 
@@ -2862,7 +2866,7 @@ def make_in_depth_paths(path_model_folder,
         os.makedirs(sub_out, exist_ok=True)
 
         # iterate hold-out names
-        for ho_name in all_ho_names[:3]:
+        for ho_name in all_ho_names:
             pl, df0, _ = load_lgbm_model(path_model_folder, path_df, ho_name, filter=exp_filter)
             target = ["Score"]
             remove_cols = ["Unnamed: 0", "Unnamed: 0.1", "B_sample_ID", "P_sample_ID", "Bacillus", "Pathogene"]
@@ -2910,7 +2914,7 @@ def make_in_depth_data(path_model_folder,
             target = ["Score"]
             remove_cols = ["Unnamed: 0", "Unnamed: 0.1", "B_sample_ID", "P_sample_ID", "Bacillus", "Pathogene"]
 
-            for target_class in list(pl[-1].estimators.keys())[:1]:
+            for target_class in list(pl[-1].estimators.keys()):
                 fname = f"ho_{exp_filter}_{target_class}_results.csv"
                 out_csv = os.path.join(sub_out, fname)
 
@@ -3230,7 +3234,7 @@ def compute_conformal_results(models_list, path_df, ci_mode='bca'):
 
     for path_model_folder, exp_filter in models_list:
         avg_results = []
-        for ho_name in all_ho_names[:3]:
+        for ho_name in all_ho_names:
             pipeline, method_df, _ = load_lgbm_model(
                 path_model_folder, path_df,
                 ho_name=ho_name, filter=exp_filter
@@ -3415,6 +3419,7 @@ def stratified_sampling(df, cols, n):
 def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
     # --- Widths bar plot (mean + CI95) ---
     # widths_df must have: Experiment, Evaluation, Width, CI95_low, CI95_up
+    plt.figure(figsize=(8,12))
     bars_w = sns.barplot(
         data=widths_df,
         x="Experiment",
@@ -3444,10 +3449,10 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
         x_center = patch.get_x() + patch.get_width() / 2.0
         y_top = patch.get_height()
         bars_w.text(
-            x_center + 0.33*patch.get_width(), y_top + 0.01,
+            x_center + 0.2*patch.get_width(), y_top + 0.01,
             f"{y_top:.3f}",
             ha="center", va="bottom",
-            color="black", fontsize=10, fontweight="bold"
+            color="black", fontsize=8, fontweight="bold"
         )
 
     bars_w.set_ylabel("Mean Conformal Interval Width", fontsize=12, fontweight="bold")
@@ -3464,6 +3469,7 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
     plt.clf()
 
     # --- Coverage bar plot ---
+    plt.figure(figsize=(8,12))
     bars_c = sns.barplot(
         data=coverage_df,
         x="Experiment",
@@ -3492,7 +3498,7 @@ def plot_conformal_data(widths_df, coverage_df, save_path=None, show=False):
             x_center, y_top + 0.015,
             f"{y_top:.3f}",
             ha="center", va="bottom",
-            color="black", fontsize=10, fontweight="bold"
+            color="black", fontsize=8, fontweight="bold"
         )
 
     bars_c.tick_params(axis="x", rotation=45)
@@ -3526,12 +3532,13 @@ def plot_widths_by_org(widths_df,
         show (bool): If True, display the plot.
     """
     # Split dataframe into groups
-    P_df = widths_df[widths_df['Evaluation'].isin(ho_pathogen)].copy()
-    B_df = widths_df[widths_df['Evaluation'].isin(ho_bacillus)].copy()
-    I_df = widths_df[widths_df['Evaluation'].isin(ho_interaction)].copy()
-
-    for experiment in np.unique(P_df["Experiment"]):
+    P_df = widths_df[widths_df['Evaluation'].astype(str).isin(ho_pathogen)]
+    B_df = widths_df[widths_df['Evaluation'].astype(str).isin(ho_bacillus)]
+    I_df = widths_df[widths_df['Evaluation'].astype(str).isin(ho_interaction)]
+    
+    for experiment in np.unique(widths_df["Experiment"]):
         P_plot_df = P_df[P_df["Experiment"] == experiment]
+        
         B_plot_df = B_df[B_df["Experiment"] == experiment]
         Int_plot_df = I_df[I_df["Experiment"] == experiment]
         # Create bar plots for Pathogen and Bacillus groups.
@@ -3563,8 +3570,8 @@ def plot_widths_by_org(widths_df,
             y_top = patch.get_height()
             label = f"{patch.get_height():.3f}"
             ax[0].text(
-                x_center,
-                y_top + 0.01,
+                x_center + 0.2*patch.get_width(),
+                1.05*y_top,
                 label,
                 ha="center",
                 va="bottom",
@@ -3573,7 +3580,6 @@ def plot_widths_by_org(widths_df,
                 fontweight="bold",
             )
         ax[0].legend(loc="upper right", fontsize=12)
-
         sns.barplot(
             B_plot_df,
             x="Evaluation",
@@ -3599,8 +3605,8 @@ def plot_widths_by_org(widths_df,
             y_top = patch.get_height()
             label = f"{patch.get_height():.3f}"
             ax[1].text(
-                x_center,
-                y_top + 0.01,
+                x_center + 0.2*patch.get_width(),
+                1.05*y_top,
                 label,
                 ha="center",
                 va="center",
@@ -3613,9 +3619,9 @@ def plot_widths_by_org(widths_df,
         plt.tight_layout()
         if save_path is not None:
             save_path_bis = (
-                save_path + f"{experiment}_orgs.pdf"
+                save_path + f"_{experiment}_orgs.pdf"
                 if not save_path.endswith(".pdf")
-                else save_path.replace(".pdf", f"{experiment}_orgs.pdf")
+                else save_path.replace(".pdf", f"_{experiment}_orgs.pdf")
             )
             plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
         if show:
@@ -3640,7 +3646,7 @@ def plot_widths_by_org(widths_df,
             save_path_bis = (
                 save_path + f"{experiment}_int.pdf"
                 if not save_path.endswith(".pdf")
-                else save_path.replace(".pdf", f"{experiment}_int.pdf")
+                else save_path.replace(".pdf", f"_{experiment}_int.pdf")
             )
             plt.savefig(save_path_bis, format="pdf", bbox_inches="tight")
         if show:
