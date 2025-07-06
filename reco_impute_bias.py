@@ -28,16 +28,25 @@ if __name__ == '__main__':
     ]
     os.makedirs("./Results/reco_exp/impute_bias/", exist_ok=True)
 
-    for stratify in [False, True]:
+    for stratify in [True, False]:
         if stratify:
             for mode in ['Quantile', 'Custom']:
-                for mixed in [True, False]:
+                for mixed in ['router', True, False]:
+                    if mixed == 'router':
+                        mixed = False
+                        router = True
+                    else:
+                        router = False
                     strat_params = {'mode':mode.lower(), 
                                     'ranges':[0.2, 0.4, 0.6, 0.8],
                                     'mixed_training':mixed,
+                                    'router_training':router,
                                     'random_state':6262}
                     prefix = 'Stratified'
-                    mixed_addon = 'Mixed' if mixed else 'Default'
+                    if router:
+                        mixed_addon = 'Routed'
+                    else:
+                        mixed_addon = 'Mixed' if mixed else 'Default'
 
                     for nan_flag in ['NoImpute', 'Impute']:
                         model_class = LGBMRegressor
