@@ -3,7 +3,7 @@ import pandas as pd
 from sklearn.base import TransformerMixin, RegressorMixin, clone, BaseEstimator
 from sklearn.model_selection import train_test_split
 from joblib import Memory, Parallel, delayed
-from lightgbm import LGBMRegressor
+from lightgbm import LGBMRegressor, LGBMClassifier
 
 class NaNFilter(TransformerMixin):
     """
@@ -68,6 +68,8 @@ class StratifiedRegressor(LGBMRegressor):
                  n_jobs: int = 1,
                  parallel: bool = True,
                  mixed_training: bool = False,
+                 router_training: bool = False,
+                 base_router=LGBMClassifier(),
                  random_state: int = 6262):
         super().__init__()
         self.base_estimator = base_estimator
@@ -80,28 +82,48 @@ class StratifiedRegressor(LGBMRegressor):
         self.n_jobs = n_jobs # Per estimator threads
         self.parallel = parallel # Fit all estimators simultaneously
         self.mixed_training = mixed_training
+        self.router_training = router_training
+        self.base_router = base_router
         self.is_fitted_ = False
         self.__sklearn_tags__ = self.base_estimator.__sklearn_tags__
 
     def split(self, X, y):
-        subset_sizes = 1 / self.n_estimators
-        X_oracle, X_strat, y_oracle, y_strat = train_test_split(X, y, 
-                                                                train_size=subset_sizes, 
-                                                                shuffle=True, 
-                                                                random_state=self.random_state)
-        splitted = {'oracle': (X_oracle,y_oracle)}
-        if self.mode == 'quantile':
-            quantiles = [0.2, 0.4, 0.6, 0.8] # 5 equally large quantiles
-            self.ranges = [np.quantile(y_strat, q) for q in quantiles]
-            print(f"\nQuantile ranges are: {self.ranges}")
-            
-        splitted['class1'] = (X_strat[y_strat < self.ranges[0]],y_strat[y_strat < self.ranges[0]])
-        for i, val in enumerate(self.ranges[1:]):
-            i += 1
-            mask = (y_strat >= self.ranges[i - 1]) & (y_strat < val)
-            splitted[f'class{i+1}'] = (X_strat[mask],y_strat[mask])
-        splitted[f'class{len(self.ranges)+1}'] = (X_strat[y_strat >= self.ranges[-1]],y_strat[y_strat >= self.ranges[-1]])
-        return splitted
+        if self.router_training:
+            X, X_router, y, y_router = train_test_split(X, y, 
+                                                        train_size=0.8, 
+                                                        shuffle=True, 
+                                                        random_state=self.random_state)
+            if self.mode == 'quantile':
+                quantiles = [0.2, 0.4, 0.6, 0.8] # 5 equally large quantiles
+                self.ranges = [np.quantile(y, q) for q in quantiles]
+                print(f"\nQuantile ranges are: {self.ranges}")
+
+            splitted = {'class1':(X[y < self.ranges[0]],y[y < self.ranges[0]])}
+            for i, val in enumerate(self.ranges[1:]):
+                i += 1
+                mask = (y >= self.ranges[i - 1]) & (y < val)
+                splitted[f'class{i+1}'] = (X[mask],y[mask])
+            splitted[f'class{len(self.ranges)+1}'] = (X[y >= self.ranges[-1]],y[y >= self.ranges[-1]])
+            return splitted, X_router, y_router
+        else:
+            subset_sizes = 1 / self.n_estimators
+            X_oracle, X_strat, y_oracle, y_strat = train_test_split(X, y, 
+                                                                    train_size=subset_sizes, 
+                                                                    shuffle=True, 
+                                                                    random_state=self.random_state)
+            splitted = {'oracle': (X_oracle,y_oracle)}
+            if self.mode == 'quantile':
+                quantiles = [0.2, 0.4, 0.6, 0.8] # 5 equally large quantiles
+                self.ranges = [np.quantile(y_strat, q) for q in quantiles]
+                print(f"\nQuantile ranges are: {self.ranges}")
+                
+            splitted['class1'] = (X_strat[y_strat < self.ranges[0]],y_strat[y_strat < self.ranges[0]])
+            for i, val in enumerate(self.ranges[1:]):
+                i += 1
+                mask = (y_strat >= self.ranges[i - 1]) & (y_strat < val)
+                splitted[f'class{i+1}'] = (X_strat[mask],y_strat[mask])
+            splitted[f'class{len(self.ranges)+1}'] = (X_strat[y_strat >= self.ranges[-1]],y_strat[y_strat >= self.ranges[-1]])
+            return splitted
     
     def default_fit(self, splitted, fit_params={}):
         if self.parallel:
@@ -149,12 +171,57 @@ class StratifiedRegressor(LGBMRegressor):
         self.is_fitted_ = True
         return self
 
+    def routed_fit(self, X_router, y_router, splitted, fit_params={}):
+        if self.parallel:
+            result_list = Parallel(n_jobs=self.n_estimators)(
+                    delayed(fit_submodel)(self.base_estimator, val[0], val[1], fit_params)
+                    for key, val in splitted.items()
+                )
+            self.estimators = {key:result_list[i] for i, key in enumerate(splitted.keys())}
+        else:
+            self.estimators = {}
+            for key, val in splitted.items():
+                X_train, Y_train = val[0], val[1]
+                self.estimators[key] = fit_submodel(self.base_estimator, X_train, Y_train, fit_params)
+        
+        # Gather predictions for all range-specific estimators on unseen data
+        predicted_scores = [self.estimators[key].predict(X_router).reshape(-1,1) for key in splitted.keys()]
+        self.router_mapping = {i:key for i, key in enumerate(splitted.keys())}
+        predicted_scores = np.concatenate(predicted_scores, axis=1)
+
+        # Identify the best estimators based on absolute error
+        abs_err = np.abs(predicted_scores - y_router.reshape(-1,1))
+        best_estimators = np.argmin(abs_err, axis=1).reshape(-1,1)
+
+        # Train the router to learn to predict the best sub model to use
+        self.estimators['router'] = fit_submodel(self.base_router, X_router, best_estimators, fit_params)
+        self.is_fitted_ = True
+        return self
+    
     def fit(self, X, y, fit_params={}):
+        if self.router_training:
+            splitted, X_router, y_router = self.split(X, y)
+            return self.router_training(splitted, X_router, y_router, fit_params)
+        # If not in router mode
         splitted = self.split(X, y)
         if self.mixed_training:
             return self.mixed_fit(splitted, fit_params)
         return self.default_fit(splitted, fit_params)
 
+    def routed_predict(self, X):
+        estimators_indices = self.estimators['router'].predict(X)
+
+        y_pred = np.zeros((X.shape[0],1))
+        estimator_track = np.zeros((X.shape[0],1), dtype='<U7')
+        for idx in self.router_mapping.keys():
+            mask = (estimators_indices == idx)
+            if np.sum(mask) >= 1:
+                X_submodel = X[mask]
+                key = self.router_mapping[idx]
+                y_pred[mask] = self.estimators[key].predict(X_submodel)
+                estimator_track[mask] = [key] * np.sum(mask)
+        return y_pred, estimator_track
+    
     def get_stratification_masks(self, X, return_y_oracle=False):
         y_oracle = self.estimators['oracle'].predict(X)
         # print("\nY_oracle", y_oracle)
@@ -180,27 +247,31 @@ class StratifiedRegressor(LGBMRegressor):
     def predict(self, X, 
                 return_y_oracle: bool = False,
                 return_used_estimators: bool = False):
-        strat_masks, y_oracle = self.get_stratification_masks(X, 
-                                                              return_y_oracle=return_y_oracle)
-        y_oracle = y_oracle.ravel() if y_oracle is not None else y_oracle
-
-        n_masks = len(strat_masks)
-        y_pred = np.zeros((X.shape[0],1))
-        estimator_track = np.zeros((X.shape[0],1), dtype='<U7')
-        if self.parallel: # Parallel inference
-            result_list = Parallel(n_jobs=n_masks)(
-                delayed(predict_submodel)(self.estimators[key], X[mask])
-                for key, mask in strat_masks.items()
-                )
-            for i, item in enumerate(strat_masks.items()):
-                key, mask = item[0], item[1].reshape(-1,1)
-                y_pred[mask] = result_list[i]
-                estimator_track[mask] = [key] * np.sum(mask)
+        if self.router_training:
+            y_pred, estimator_track = self.routed_predict(X)
+            y_oracle = None
         else:
-            for key, mask in strat_masks.items():
-                y_pred[mask] = self.estimators[key].predict(X[mask])
-                estimator_track[mask] = [key] * np.sum(mask)
-        y_pred = y_pred.ravel() if y_pred is not None else y_pred
+            strat_masks, y_oracle = self.get_stratification_masks(X, 
+                                                                return_y_oracle=return_y_oracle)
+            y_oracle = y_oracle.ravel() if y_oracle is not None else y_oracle
+
+            n_masks = len(strat_masks)
+            y_pred = np.zeros((X.shape[0],1))
+            estimator_track = np.zeros((X.shape[0],1), dtype='<U7')
+            if self.parallel: # Parallel inference
+                result_list = Parallel(n_jobs=n_masks)(
+                    delayed(predict_submodel)(self.estimators[key], X[mask])
+                    for key, mask in strat_masks.items()
+                    )
+                for i, item in enumerate(strat_masks.items()):
+                    key, mask = item[0], item[1].reshape(-1,1)
+                    y_pred[mask] = result_list[i]
+                    estimator_track[mask] = [key] * np.sum(mask)
+            else:
+                for key, mask in strat_masks.items():
+                    y_pred[mask] = self.estimators[key].predict(X[mask])
+                    estimator_track[mask] = [key] * np.sum(mask)
+            y_pred = y_pred.ravel() if y_pred is not None else y_pred
         # print('\nY_pred', y_pred)
         # print("Estimator track", estimator_track)
         if y_oracle is not None:
@@ -217,36 +288,50 @@ class StratifiedRegressor(LGBMRegressor):
                          return_mask: bool = False,
                         return_y_oracle: bool = False,
                         return_used_estimators: bool = False):
+        """Retrieve only the prediction of the specified submodel class"""
         if pipeline is not None:
             X = pipeline.transform(X)
-        if y_class == 'oracle':
-            strat_masks, y_oracle = self.get_stratification_masks(X, 
-                                                              return_y_oracle=True)
-            y_oracle = y_oracle.ravel() if y_oracle is not None else y_oracle
-            mask = y_oracle > -1 # mask full of true
-            y_pred = y_oracle
+        if self.router_training:
+            y_oracle = None
+            if y_class == 'oracle':
+                y_class = 'class1'
+            estimators_indices = self.estimators['router'].predict(X)
+            mask = (estimators_indices == y_class)
+            y_pred = np.zeros((X.shape[0],1))
             estimator_track = np.zeros((X.shape[0],1), dtype='<U7')
-            estimator_track = [y_class] * X.shape[0]
+            y_pred[mask] = self.estimators[y_class].predict(X[mask]).reshape(-1,1)
+            y_pred = y_pred[mask]
+            estimator_track[mask] = np.array([y_class] * np.sum(mask)).reshape(-1,1)
+            estimator_track = estimator_track[mask]
         else:
-            strat_masks, y_oracle = self.get_stratification_masks(X, 
-                                                              return_y_oracle=return_y_oracle)
-            y_oracle = y_oracle.ravel() if y_oracle is not None else y_oracle
-            if y_class in strat_masks.keys():
-                mask = strat_masks[y_class]
-                # print("\nMASK", mask, mask.shape)
-                # y_pred = np.zeros((X[mask].shape[0],1))
-                y_pred = np.zeros((X.shape[0],1))
-                # print("\nYPRED", y_pred, y_pred.shape)
-                # estimator_track = np.zeros((X[mask].shape[0],1), dtype='<U7')
+            if y_class == 'oracle':
+                strat_masks, y_oracle = self.get_stratification_masks(X, 
+                                                                return_y_oracle=True)
+                y_oracle = y_oracle.ravel() if y_oracle is not None else y_oracle
+                mask = y_oracle > -1 # mask full of true
+                y_pred = y_oracle
                 estimator_track = np.zeros((X.shape[0],1), dtype='<U7')
-                y_pred[mask] = self.estimators[y_class].predict(X[mask]).reshape(-1,1)
-                y_pred = y_pred[mask]
-                estimator_track[mask] = np.array([y_class] * np.sum(mask)).reshape(-1,1)
-                estimator_track = estimator_track[mask]
+                estimator_track = [y_class] * X.shape[0]
             else:
-              if return_mask:
-                  return None, None
-              return None
+                strat_masks, y_oracle = self.get_stratification_masks(X, 
+                                                                return_y_oracle=return_y_oracle)
+                y_oracle = y_oracle.ravel() if y_oracle is not None else y_oracle
+                if y_class in strat_masks.keys():
+                    mask = strat_masks[y_class]
+                    # print("\nMASK", mask, mask.shape)
+                    # y_pred = np.zeros((X[mask].shape[0],1))
+                    y_pred = np.zeros((X.shape[0],1))
+                    # print("\nYPRED", y_pred, y_pred.shape)
+                    # estimator_track = np.zeros((X[mask].shape[0],1), dtype='<U7')
+                    estimator_track = np.zeros((X.shape[0],1), dtype='<U7')
+                    y_pred[mask] = self.estimators[y_class].predict(X[mask]).reshape(-1,1)
+                    y_pred = y_pred[mask]
+                    estimator_track[mask] = np.array([y_class] * np.sum(mask)).reshape(-1,1)
+                    estimator_track = estimator_track[mask]
+                else:
+                    if return_mask:
+                        return None, None
+                    return None
 
         y_pred = y_pred.ravel() if y_pred is not None else y_pred
         # Horrible code but that should do it
