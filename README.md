@@ -110,7 +110,7 @@ Figures will be saved in the `Plots/` directory after running the scripts.
 ## **📫 Contact & Citation**
 You can cite our work as:
 
-> **Citation**:
+> **Citation**:  
 > @article{RUBRICE2025100137,  
 title = {A machine learning framework for the prediction and analysis of bacterial antagonism in biofilms using morphological descriptors},  
 journal = {Artificial Intelligence in the Life Sciences},  
