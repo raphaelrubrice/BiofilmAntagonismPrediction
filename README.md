@@ -1,5 +1,5 @@
 Code for the paper :
-# **A machine learning approach to predict the antagonism of beneficial strains against microbial pathogens using morphological descriptors of their biofilms.**
+# **[A machine learning approach to predict the antagonism of beneficial strains against microbial pathogens using morphological descriptors of their biofilms.](https://www.sciencedirect.com/science/article/pii/S2667318525000133?via%3Dihub)**
 
 ### **📌 Abstract**
 Biofilms are structured microbial communities that promote cell interactionsthrough close spatial organization, leading to cooperative or competitive behaviors. Predicting microbial interactions in biofilms could aid in developing innovative strategies to control undesirable bacteria. Here, we present amachine learning approach to predict the antagonistic effects of beneficial bacterial candidates *Bacillus* and *Paenibacillus* species against undesirable bacteria (*Staphylococcus aureus*, *Enterococcus cecorum*, *Escherichia coli* and *Salmonella enterica*), based on the morphological descriptors of single-species biofilms. We trained the models using quantitative features (e.g. biofilmvolume, thickness, roughness or substratum coverage). As a proxy for antagonism, an exclusion score was used as the supervised training target. The latter was calculated based on the ratio of biofilm volume between the undesirable bacteria growing and the beneficial strain. We then used diverse explainability  methods to analyze the resulting model and found insights highlighting the importance of biofilm formation context when predicting antagonism. Our results demonstrate that machine learning can provide an efficient, data-driven tool to predict microbial interactions within biofilms and support the selection of beneficial strains for biofilm control. This approach enables scalable screening of microbial interactions, applicable in agriculture, healthcare, and industrial microbiology.
@@ -110,8 +110,19 @@ Figures will be saved in the `Plots/` directory after running the scripts.
 ## **📫 Contact & Citation**
 You can cite our work as:
 
-> **[Not yet]**
+> **Citation**:
+> @article{RUBRICE2025100137,
+title = {A machine learning framework for the prediction and analysis of bacterial antagonism in biofilms using morphological descriptors},
+journal = {Artificial Intelligence in the Life Sciences},
+pages = {100137},
+year = {2025},
+issn = {2667-3185},
+doi = {https://doi.org/10.1016/j.ailsci.2025.100137},
+url = {https://www.sciencedirect.com/science/article/pii/S2667318525000133},
+author = {Raphaël Rubrice and Virgile Gueneau and Romain Briandet and Antoine Cornuejols and Vincent Guigue},
+keywords = {Biofilm, Beneficial biofilms, Pathogens, Machine learning, Artificial intelligence, Explainability, Interpretability},
+}
 
-For questions contact `raphael.rubrice@agroparistech.fr`.
+For questions contact `raphael.rubrice@agroparistech.fr` or `vincent.guigue@agroparistech.fr`.
 
 ---
