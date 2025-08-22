@@ -111,18 +111,17 @@ Figures will be saved in the `Plots/` directory after running the scripts.
 You can cite our work as:
 
 > **Citation**:
-
-@article{RUBRICE2025100137,
-title = {A machine learning framework for the prediction and analysis of bacterial antagonism in biofilms using morphological descriptors},
-journal = {Artificial Intelligence in the Life Sciences},
-pages = {100137},
-year = {2025},
-issn = {2667-3185},
-doi = {https://doi.org/10.1016/j.ailsci.2025.100137},
-url = {https://www.sciencedirect.com/science/article/pii/S2667318525000133},
-author = {Raphaël Rubrice and Virgile Gueneau and Romain Briandet and Antoine Cornuejols and Vincent Guigue},
-keywords = {Biofilm, Beneficial biofilms, Pathogens, Machine learning, Artificial intelligence, Explainability, Interpretability},
-}
+> @article{RUBRICE2025100137,  
+title = {A machine learning framework for the prediction and analysis of bacterial antagonism in biofilms using morphological descriptors},  
+journal = {Artificial Intelligence in the Life Sciences},  
+pages = {100137},  
+year = {2025},  
+issn = {2667-3185},  
+doi = {https://doi.org/10.1016/j.ailsci.2025.100137},  
+url = {https://www.sciencedirect.com/science/article/pii/S2667318525000133},  
+author = {Raphaël Rubrice and Virgile Gueneau and Romain Briandet and Antoine Cornuejols and Vincent Guigue},  
+keywords = {Biofilm, Beneficial biofilms, Pathogens, Machine learning, Artificial intelligence, Explainability, Interpretability},  
+}  
 
 For questions contact `raphael.rubrice@agroparistech.fr` or `vincent.guigue@agroparistech.fr`.
 
